@@ -4,22 +4,6 @@ import os
 from dataclasses import dataclass
 
 
-def _load_dotenv(path: str = ".env") -> None:
-    try:
-        with open(path, "r", encoding="utf-8") as handle:
-            for raw_line in handle:
-                line = raw_line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, value = line.split("=", 1)
-                key = key.strip()
-                value = value.strip().strip('"').strip("'")
-                if key:
-                    os.environ.setdefault(key, value)
-    except FileNotFoundError:
-        return
-
-
 @dataclass(slots=True)
 class Settings:
     bot_token: str
@@ -41,7 +25,6 @@ def _get_env(name: str, default: str | None = None) -> str:
 
 
 def load_settings() -> Settings:
-    _load_dotenv()
     return Settings(
         bot_token=_get_env("BOT_TOKEN"),
         database_url=_get_env("DATABASE_URL"),
