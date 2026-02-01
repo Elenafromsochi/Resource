@@ -2,14 +2,18 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, String, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import DateTime
+from sqlalchemy import Integer
+from sqlalchemy import String
+from sqlalchemy import func
+from sqlalchemy.orm import Mapped
+from sqlalchemy.orm import mapped_column
 
 from app.db import Base
 
 
 class Channel(Base):
-    __tablename__ = "channels"
+    __tablename__ = 'channels'
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(

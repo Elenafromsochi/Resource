@@ -1,4 +1,4 @@
-version: "3.9"
+version: '3.9'
 
 services:
   postgres:
@@ -8,14 +8,14 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-app}
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
   mongo:
     image: mongo:latest
     ports:
-      - "27017:27017"
+      - '27017:27017'
     volumes:
       - mongo_data:/data/db
 
@@ -25,7 +25,7 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://postgres:postgres@postgres:5432/app}
+      POSTGRES_URL: ${POSTGRES_URL:-postgresql+asyncpg://postgres:postgres@postgres:5432/app}
       MONGO_URL: ${MONGO_URL:-mongodb://mongo:27017}
       MONGO_DB: ${MONGO_DB:-app}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
@@ -39,7 +39,7 @@ services:
       - postgres
       - mongo
     ports:
-      - "8000:8000"
+      - '8000:8000'
     volumes:
       - ./backend:/app
 
@@ -53,7 +53,7 @@ services:
     depends_on:
       - backend
     ports:
-      - "5173:5173"
+      - '5173:5173'
     volumes:
       - ./frontend:/app
       - /app/node_modules
