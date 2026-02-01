@@ -1,0 +1,18 @@
+---
+description: Применяй эти правила при создании или редактировании
+globs: backend/**/*.{py}
+---
+
+isort
+[settings]
+default_section=THIRDPARTY
+force_single_line=1
+force_alphabetical_sort_within_sections=1
+known_first_party=app
+from_first=1
+lines_after_imports=2
+combine_as_imports=1
+
+Применяй PEP8, ограничения по длине строки игнорируй
+
+Применяй правила flake8 comma
