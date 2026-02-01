@@ -10,13 +10,13 @@ MVP Telegram-бот для взаимного обмена паями (ресу�
 pip install -r requirements.txt
 ```
 
-2. Установить переменные окружения:
+2. Заполнить `.env`:
 
 ```
-export BOT_TOKEN="..."
-export DATABASE_URL="postgresql+asyncpg://user:pass@localhost:5432/resource"
-export REDIS_URL="redis://localhost:6379/0"
-export OPENAI_API_KEY="..."
+BOT_TOKEN=...
+DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/resource
+REDIS_URL=redis://localhost:6379/0
+OPENAI_API_KEY=...
 ```
 
 Дополнительно:
@@ -31,6 +31,15 @@ export OPENAI_API_KEY="..."
 
 ```
 python bot.py
+```
+
+## Docker Compose
+
+1. Заполните `.env` (BOT_TOKEN, OPENAI_API_KEY и др.).
+2. Запустите:
+
+```
+docker compose up --build
 ```
 
 ## Команды
