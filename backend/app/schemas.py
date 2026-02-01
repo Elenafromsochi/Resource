@@ -23,4 +23,3 @@ class ChannelRead(BaseModel):
 
 class ChannelList(BaseModel):
     items: list[ChannelRead]
-    summary: str | None = None

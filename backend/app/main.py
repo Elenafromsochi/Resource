@@ -7,7 +7,6 @@ import re
 from fastapi import Depends
 from fastapi import FastAPI
 from fastapi import HTTPException
-from fastapi import Query
 from fastapi import status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
@@ -16,10 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import API_PREFIX
 from app.config import APP_NAME
-from app.config import DEEPSEEK_API_KEY
 from app.db import get_session
 from app.db import init_db
-from app.deepseek import generate_summary
 from app.models import Channel
 from app.mongo import log_channel_event
 from app.mongo import ping_mongo
@@ -83,25 +80,13 @@ async def healthcheck(session: AsyncSession = Depends(get_session)):
     response_model=ChannelList,
 )
 async def list_channels(
-    include_summary: bool = Query(default=False),
     session: AsyncSession = Depends(get_session),
 ):
     result = await session.execute(
         select(Channel).order_by(Channel.created_at.desc()),
     )
     items = result.scalars().all()
-
-    summary = None
-    if include_summary:
-        if not DEEPSEEK_API_KEY:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail='DeepSeek API key not configured',
-            )
-        names = ', '.join([channel.name for channel in items]) or 'No channels'
-        summary = await generate_summary(names)
-
-    return ChannelList(items=items, summary=summary)
+    return ChannelList(items=items)
 
 
 @app.post(
@@ -118,13 +103,6 @@ async def create_channel(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail='Channel username is required',
-        )
-
-    existing = await get_channel_by_username(session, username)
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail='Channel already exists',
         )
 
     resolved = await resolve_channel(username)
