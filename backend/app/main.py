@@ -26,7 +26,7 @@ from app.schemas import ChannelList
 from app.schemas import ChannelRead
 from app.telethon_service import resolve_channel
 
-app = FastAPI(title=APP_NAME)
+app = FastAPI(title=APP_NAME, root_path=API_PREFIX)
 
 @app.on_event('startup')
 async def on_startup() -> None:
@@ -50,7 +50,7 @@ async def get_channel_by_username(
     return result.scalar_one_or_none()
 
 
-@app.get(f'{API_PREFIX}/health')
+@app.get('/health')
 async def healthcheck(session: AsyncSession = Depends(get_session)):
     db_ok = True
     try:
@@ -63,7 +63,7 @@ async def healthcheck(session: AsyncSession = Depends(get_session)):
 
 
 @app.get(
-    f'{API_PREFIX}/channels',
+    '/channels',
     response_model=ChannelList,
 )
 async def list_channels(
@@ -89,7 +89,7 @@ async def list_channels(
 
 
 @app.post(
-    f'{API_PREFIX}/channels',
+    '/channels',
     response_model=ChannelRead,
     status_code=status.HTTP_201_CREATED,
 )
@@ -138,7 +138,7 @@ async def create_channel(
 
 
 @app.delete(
-    f'{API_PREFIX}/channels/{{channel_id}}',
+    '/channels/{channel_id}',
     status_code=status.HTTP_200_OK,
 )
 async def delete_channel(
