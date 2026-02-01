@@ -1,0 +1,5 @@
+aiogram
+SQLAlchemy
+asyncpg
+redis
+httpx
