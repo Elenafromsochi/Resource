@@ -39,5 +39,8 @@ Creates a channel.
 }
 ```
 
+### POST /api/channels/sync
+Syncs Telegram dialogs (channels and groups) into the database.
+
 ### DELETE /api/channels/{id}
 Deletes a channel.

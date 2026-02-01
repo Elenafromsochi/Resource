@@ -16,10 +16,19 @@ class ChannelRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    username: str
+    tg_peer_id: int | None
+    username: str | None
     name: str
+    dialog_type: str
     created_at: datetime
 
 
 class ChannelList(BaseModel):
     items: list[ChannelRead]
+
+
+class ChannelSyncResult(BaseModel):
+    total: int
+    created: int
+    updated: int
+    skipped: int

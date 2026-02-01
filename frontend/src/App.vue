@@ -40,9 +40,19 @@
           <h2>Channel list</h2>
           <p class="muted">Total: {{ channels.length }}</p>
         </div>
-        <button type="button" class="secondary" @click="fetchChannels">
-          Refresh
-        </button>
+        <div class="actions">
+          <button type="button" :disabled="loading" @click="syncChannels">
+            Sync Telegram
+          </button>
+          <button
+            type="button"
+            class="secondary"
+            :disabled="loading"
+            @click="fetchChannels"
+          >
+            Refresh
+          </button>
+        </div>
       </div>
 
       <div v-if="error" class="error">{{ error }}</div>
@@ -52,7 +62,13 @@
           <li v-for="channel in channels" :key="channel.id">
             <div class="channel-info">
               <strong>{{ channel.name }}</strong>
-              <span class="meta">@{{ channel.username }}</span>
+              <div class="meta">
+                <span v-if="channel.username">@{{ channel.username }}</span>
+                <span v-else>ID {{ channel.tg_peer_id }}</span>
+                <span class="badge">
+                  {{ channel.dialog_type || "channel" }}
+                </span>
+              </div>
             </div>
             <button type="button" class="danger" @click="deleteChannel(channel.id)">
               Delete
@@ -89,6 +105,25 @@ const fetchChannels = async () => {
     channels.value = data.items || [];
   } catch (err) {
     error.value = err.message || "Load error.";
+  } finally {
+    loading.value = false;
+  }
+};
+
+const syncChannels = async () => {
+  loading.value = true;
+  error.value = "";
+  try {
+    const response = await fetch(`${apiBase}/api/channels/sync`, {
+      method: "POST",
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error(payload?.detail || "Unable to sync channels.");
+    }
+    await fetchChannels();
+  } catch (err) {
+    error.value = err.message || "Sync error.";
   } finally {
     loading.value = false;
   }
@@ -253,6 +288,12 @@ button:disabled {
   margin-bottom: 16px;
 }
 
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .muted {
   margin: 6px 0 0;
   color: #6b7280;
@@ -282,8 +323,22 @@ button:disabled {
 }
 
 .meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
   font-size: 13px;
   color: #6b7280;
+}
+
+.badge {
+  background: #e5e7eb;
+  color: #111827;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .error {
