@@ -8,25 +8,28 @@ from typing import Optional
 from telethon import TelegramClient
 from telethon.errors import RPCError
 
-from app.config import settings
+from app.config import TELEGRAM_API_HASH
+from app.config import TELEGRAM_API_ID
+from app.config import TELEGRAM_BOT_TOKEN
+from app.config import TELETHON_SESSION
 
 logger = logging.getLogger(__name__)
 
 
 async def resolve_channel(username: str) -> Optional[Dict[str, Any]]:
-    if not settings.telegram_api_id or not settings.telegram_api_hash:
+    if not TELEGRAM_API_ID or not TELEGRAM_API_HASH:
         return None
 
     client = TelegramClient(
-        settings.telethon_session,
-        settings.telegram_api_id,
-        settings.telegram_api_hash,
+        TELETHON_SESSION,
+        TELEGRAM_API_ID,
+        TELEGRAM_API_HASH,
     )
 
     try:
         await client.connect()
-        if settings.telegram_bot_token:
-            await client.start(bot_token=settings.telegram_bot_token)
+        if TELEGRAM_BOT_TOKEN:
+            await client.start(bot_token=TELEGRAM_BOT_TOKEN)
 
         entity = await client.get_entity(username)
         if entity is None:

@@ -13,7 +13,10 @@ from sqlalchemy import select
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
+from app.config import API_PREFIX
+from app.config import APP_NAME
+from app.config import CORS_ORIGINS
+from app.config import DEEPSEEK_API_KEY
 from app.db import get_session
 from app.db import init_db
 from app.deepseek import generate_summary
@@ -25,11 +28,11 @@ from app.schemas import ChannelList
 from app.schemas import ChannelRead
 from app.telethon_service import resolve_channel
 
-app = FastAPI(title=settings.app_name)
+app = FastAPI(title=APP_NAME)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=CORS_ORIGINS,
     allow_credentials=False,
     allow_methods=['*'],
     allow_headers=['*'],
@@ -58,7 +61,7 @@ async def get_channel_by_username(
     return result.scalar_one_or_none()
 
 
-@app.get(f'{settings.api_prefix}/health')
+@app.get(f'{API_PREFIX}/health')
 async def healthcheck(session: AsyncSession = Depends(get_session)):
     db_ok = True
     try:
@@ -71,7 +74,7 @@ async def healthcheck(session: AsyncSession = Depends(get_session)):
 
 
 @app.get(
-    f'{settings.api_prefix}/channels',
+    f'{API_PREFIX}/channels',
     response_model=ChannelList,
 )
 async def list_channels(
@@ -85,7 +88,7 @@ async def list_channels(
 
     summary = None
     if include_summary:
-        if not settings.deepseek_api_key:
+        if not DEEPSEEK_API_KEY:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail='DeepSeek API key not configured',
@@ -97,7 +100,7 @@ async def list_channels(
 
 
 @app.post(
-    f'{settings.api_prefix}/channels',
+    f'{API_PREFIX}/channels',
     response_model=ChannelRead,
     status_code=status.HTTP_201_CREATED,
 )
@@ -146,7 +149,7 @@ async def create_channel(
 
 
 @app.delete(
-    f'{settings.api_prefix}/channels/{{channel_id}}',
+    f'{API_PREFIX}/channels/{{channel_id}}',
     status_code=status.HTTP_200_OK,
 )
 async def delete_channel(

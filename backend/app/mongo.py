@@ -8,7 +8,8 @@ from typing import Dict
 
 from pymongo import AsyncMongoClient
 
-from app.config import settings
+from app.config import MONGO_DB
+from app.config import MONGO_URL
 
 logger = logging.getLogger(__name__)
 _mongo_client: AsyncMongoClient | None = None
@@ -17,12 +18,12 @@ _mongo_client: AsyncMongoClient | None = None
 def get_mongo_client() -> AsyncMongoClient:
     global _mongo_client
     if _mongo_client is None:
-        _mongo_client = AsyncMongoClient(settings.mongo_url)
+        _mongo_client = AsyncMongoClient(MONGO_URL)
     return _mongo_client
 
 
 def get_mongo_db():
-    return get_mongo_client()[settings.mongo_db]
+    return get_mongo_client()[MONGO_DB]
 
 
 async def log_channel_event(event_type: str, payload: Dict[str, Any]) -> None:
