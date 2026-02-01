@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import re
 from contextlib import asynccontextmanager
 from typing import Optional
+import re
 
 from fastapi import Depends
 from fastapi import FastAPI
@@ -27,6 +27,7 @@ from app.schemas import ChannelList
 from app.schemas import ChannelRead
 from app.telethon_service import resolve_channel
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
@@ -45,10 +46,11 @@ def normalize_username(raw: str) -> str:
 
 
 async def get_channel_by_username(
-    session: AsyncSession, username: str
+    session: AsyncSession,
+    username: str,
 ) -> Optional[Channel]:
     result = await session.execute(
-        select(Channel).where(Channel.username == username)
+        select(Channel).where(Channel.username == username),
     )
     return result.scalar_one_or_none()
 
@@ -74,7 +76,7 @@ async def list_channels(
     session: AsyncSession = Depends(get_session),
 ):
     result = await session.execute(
-        select(Channel).order_by(Channel.created_at.desc())
+        select(Channel).order_by(Channel.created_at.desc()),
     )
     items = result.scalars().all()
 
