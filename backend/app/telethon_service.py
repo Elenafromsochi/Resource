@@ -7,6 +7,7 @@ import logging
 
 from telethon import TelegramClient
 from telethon.errors import RPCError
+from telethon.sessions import StringSession
 
 from app.config import TELEGRAM_API_HASH
 from app.config import TELEGRAM_API_ID
@@ -21,7 +22,7 @@ async def resolve_channel(username: str) -> Optional[Dict[str, Any]]:
         return None
 
     client = TelegramClient(
-        TELETHON_SESSION,
+        StringSession(TELETHON_SESSION),
         TELEGRAM_API_ID,
         TELEGRAM_API_HASH,
     )
