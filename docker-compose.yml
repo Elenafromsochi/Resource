@@ -8,14 +8,10 @@ services:
       POSTGRES_DB: db
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
-    entrypoint:
-      - /bin/sh
-      - /usr/local/bin/postgres-entrypoint.sh
     ports:
       - 5432:5432
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./docker/postgres-entrypoint.sh:/usr/local/bin/postgres-entrypoint.sh:ro
 
   mongo:
     image: mongo:latest
@@ -30,26 +26,26 @@ services:
     environment:
       MONGO_URL: mongodb://mongo:27017
       MONGO_DB: app
-    depends_on:
-      - postgres
-      - mongo
     ports:
       - 8000:8000
     volumes:
       - ./backend:/app
+    depends_on:
+      - postgres
+      - mongo
 
   frontend:
     build:
       context: ./frontend
     environment:
       VITE_API_BASE_URL: http://localhost:8000
-    depends_on:
-      - backend
     ports:
       - 5173:5173
     volumes:
       - ./frontend:/app
       - /app/node_modules
+    depends_on:
+      - backend
 
 volumes:
   postgres_data:
