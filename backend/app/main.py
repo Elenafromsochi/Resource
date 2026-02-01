@@ -16,6 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import API_PREFIX
 from app.config import APP_NAME
+from app.config import CORS_ORIGIN_REGEX
+from app.config import CORS_ORIGINS
 from app.config import DEEPSEEK_API_KEY
 from app.db import get_session
 from app.db import init_db
@@ -38,10 +40,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title=APP_NAME, root_path=API_PREFIX, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        'http://localhost:5173',
-        'http://127.0.0.1:5173',
-    ],
+    allow_origins=CORS_ORIGINS,
+    allow_origin_regex=CORS_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=['*'],
     allow_headers=['*'],
