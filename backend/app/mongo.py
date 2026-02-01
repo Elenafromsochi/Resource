@@ -1,13 +1,12 @@
 from __future__ import annotations
 
+from datetime import datetime
+from datetime import timezone
 import logging
-from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any
+from typing import Dict
 
-try:
-    from pymongo import AsyncMongoClient
-except ImportError:  # pragma: no cover - fallback for older pymongo layouts
-    from pymongo.asynchronous.mongo_client import AsyncMongoClient
+from pymongo import AsyncMongoClient
 
 from app.config import settings
 
@@ -31,18 +30,18 @@ async def log_channel_event(event_type: str, payload: Dict[str, Any]) -> None:
         collection = get_mongo_db().channel_events
         await collection.insert_one(
             {
-                "event_type": event_type,
-                "payload": payload,
-                "created_at": datetime.now(timezone.utc),
+                'event_type': event_type,
+                'payload': payload,
+                'created_at': datetime.now(timezone.utc),
             }
         )
     except Exception as exc:  # pragma: no cover - logging only
-        logger.warning("Failed to log event to MongoDB: %s", exc)
+        logger.warning('Failed to log event to MongoDB: %s', exc)
 
 
 async def ping_mongo() -> bool:
     try:
-        await get_mongo_client().admin.command("ping")
+        await get_mongo_client().admin.command('ping')
         return True
     except Exception:
         return False

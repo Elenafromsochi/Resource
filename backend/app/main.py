@@ -3,17 +3,26 @@ from __future__ import annotations
 import re
 from typing import Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi import Depends
+from fastapi import FastAPI
+from fastapi import HTTPException
+from fastapi import Query
+from fastapi import status
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import select, text
+from sqlalchemy import select
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.db import get_session, init_db
+from app.db import get_session
+from app.db import init_db
 from app.deepseek import generate_summary
 from app.models import Channel
-from app.mongo import log_channel_event, ping_mongo
-from app.schemas import ChannelCreate, ChannelList, ChannelRead
+from app.mongo import log_channel_event
+from app.mongo import ping_mongo
+from app.schemas import ChannelCreate
+from app.schemas import ChannelList
+from app.schemas import ChannelRead
 from app.telethon_service import resolve_channel
 
 app = FastAPI(title=settings.app_name)
@@ -22,21 +31,21 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=['*'],
+    allow_headers=['*'],
 )
 
 
-@app.on_event("startup")
+@app.on_event('startup')
 async def on_startup() -> None:
     await init_db()
 
 
 def normalize_username(raw: str) -> str:
     value = raw.strip()
-    value = re.sub(r"^(https?://)?t\.me/", "", value, flags=re.IGNORECASE)
-    value = re.sub(r"^(https?://)?telegram\.me/", "", value, flags=re.IGNORECASE)
-    value = value.lstrip("@")
+    value = re.sub(r'^(https?://)?t\.me/', '', value, flags=re.IGNORECASE)
+    value = re.sub(r'^(https?://)?telegram\.me/', '', value, flags=re.IGNORECASE)
+    value = value.lstrip('@')
     return value.strip()
 
 
@@ -49,20 +58,20 @@ async def get_channel_by_username(
     return result.scalar_one_or_none()
 
 
-@app.get(f"{settings.api_prefix}/health")
+@app.get(f'{settings.api_prefix}/health')
 async def healthcheck(session: AsyncSession = Depends(get_session)):
     db_ok = True
     try:
-        await session.execute(text("SELECT 1"))
+        await session.execute(text('SELECT 1'))
     except Exception:  # pragma: no cover - best effort
         db_ok = False
 
     mongo_ok = await ping_mongo()
-    return {"postgres": db_ok, "mongo": mongo_ok}
+    return {'postgres': db_ok, 'mongo': mongo_ok}
 
 
 @app.get(
-    f"{settings.api_prefix}/channels",
+    f'{settings.api_prefix}/channels',
     response_model=ChannelList,
 )
 async def list_channels(
@@ -79,16 +88,16 @@ async def list_channels(
         if not settings.deepseek_api_key:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="DeepSeek API key not configured",
+                detail='DeepSeek API key not configured',
             )
-        names = ", ".join([channel.name for channel in items]) or "No channels"
+        names = ', '.join([channel.name for channel in items]) or 'No channels'
         summary = await generate_summary(names)
 
     return ChannelList(items=items, summary=summary)
 
 
 @app.post(
-    f"{settings.api_prefix}/channels",
+    f'{settings.api_prefix}/channels',
     response_model=ChannelRead,
     status_code=status.HTTP_201_CREATED,
 )
@@ -100,28 +109,28 @@ async def create_channel(
     if not username:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Channel username is required",
+            detail='Channel username is required',
         )
 
     existing = await get_channel_by_username(session, username)
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Channel already exists",
+            detail='Channel already exists',
         )
 
     resolved = await resolve_channel(username)
     if resolved:
-        username = resolved.get("username", username)
+        username = resolved.get('username', username)
 
     existing = await get_channel_by_username(session, username)
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Channel already exists",
+            detail='Channel already exists',
         )
 
-    name = payload.name or (resolved.get("name") if resolved else None) or username
+    name = payload.name or (resolved.get('name') if resolved else None) or username
 
     channel = Channel(username=username, name=name)
     session.add(channel)
@@ -129,15 +138,15 @@ async def create_channel(
     await session.refresh(channel)
 
     await log_channel_event(
-        "created",
-        {"id": channel.id, "username": channel.username, "name": channel.name},
+        'created',
+        {'id': channel.id, 'username': channel.username, 'name': channel.name},
     )
 
     return channel
 
 
 @app.delete(
-    f"{settings.api_prefix}/channels/{{channel_id}}",
+    f'{settings.api_prefix}/channels/{{channel_id}}',
     status_code=status.HTTP_200_OK,
 )
 async def delete_channel(
@@ -148,15 +157,15 @@ async def delete_channel(
     if not channel:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Channel not found",
+            detail='Channel not found',
         )
 
     await session.delete(channel)
     await session.commit()
 
     await log_channel_event(
-        "deleted",
-        {"id": channel.id, "username": channel.username, "name": channel.name},
+        'deleted',
+        {'id': channel.id, 'username': channel.username, 'name': channel.name},
     )
 
-    return {"status": "deleted", "id": channel_id}
+    return {'status': 'deleted', 'id': channel_id}

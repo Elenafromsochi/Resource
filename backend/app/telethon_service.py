@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
+from typing import Dict
+from typing import Optional
 
 from telethon import TelegramClient
 from telethon.errors import RPCError
@@ -30,11 +32,11 @@ async def resolve_channel(username: str) -> Optional[Dict[str, Any]]:
         if entity is None:
             return None
 
-        title = getattr(entity, "title", None)
-        entity_username = getattr(entity, "username", None) or username
-        return {"name": title or entity_username, "username": entity_username}
+        title = getattr(entity, 'title', None)
+        entity_username = getattr(entity, 'username', None) or username
+        return {'name': title or entity_username, 'username': entity_username}
     except (RPCError, Exception) as exc:
-        logger.warning("Telethon failed for %s: %s", username, exc)
+        logger.warning('Telethon failed for %s: %s', username, exc)
         return None
     finally:
         await client.disconnect()

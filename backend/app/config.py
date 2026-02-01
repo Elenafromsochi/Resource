@@ -1,64 +1,72 @@
 from __future__ import annotations
 
-from typing import List, Optional
+from dataclasses import dataclass
+import os
+from typing import List
+from typing import Optional
 
-from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
-class Settings(BaseSettings):
-    app_name: str = "tg-channel-manager"
-    api_prefix: str = "/api"
+def _get_env(name: str, default: str) -> str:
+    value = os.getenv(name)
+    if value is None or value == '':
+        return default
+    return value
 
-    database_url: str = Field(
-        default="postgresql+asyncpg://postgres:postgres@postgres:5432/app",
-        alias="DATABASE_URL",
+
+def _get_optional(name: str) -> Optional[str]:
+    value = os.getenv(name)
+    if value is None:
+        return None
+    value = value.strip()
+    if not value:
+        return None
+    return value
+
+
+def _get_int(name: str) -> Optional[int]:
+    value = _get_optional(name)
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+
+def _get_list(name: str, default: List[str]) -> List[str]:
+    value = _get_optional(name)
+    if value is None:
+        return default
+    return [item.strip() for item in value.split(',') if item.strip()]
+
+
+@dataclass(frozen=True)
+class Settings:
+    app_name: str = 'tg-channel-manager'
+    api_prefix: str = '/api'
+    postgres_url: str = _get_env(
+        'POSTGRES_URL',
+        'postgresql+asyncpg://postgres:postgres@postgres:5432/app',
     )
-    mongo_url: str = Field(default="mongodb://mongo:27017", alias="MONGO_URL")
-    mongo_db: str = Field(default="app", alias="MONGO_DB")
-
-    telegram_api_id: Optional[int] = Field(default=None, alias="TELEGRAM_API_ID")
-    telegram_api_hash: Optional[str] = Field(default=None, alias="TELEGRAM_API_HASH")
-    telegram_bot_token: Optional[str] = Field(default=None, alias="TELEGRAM_BOT_TOKEN")
-    telethon_session: str = Field(default="telethon", alias="TELETHON_SESSION")
-
-    deepseek_api_key: Optional[str] = Field(default=None, alias="DEEPSEEK_API_KEY")
-    deepseek_base_url: str = Field(
-        default="https://api.deepseek.com", alias="DEEPSEEK_BASE_URL"
+    mongo_url: str = _get_env('MONGO_URL', 'mongodb://mongo:27017')
+    mongo_db: str = _get_env('MONGO_DB', 'app')
+    telegram_api_id: Optional[int] = _get_int('TELEGRAM_API_ID')
+    telegram_api_hash: Optional[str] = _get_optional('TELEGRAM_API_HASH')
+    telegram_bot_token: Optional[str] = _get_optional('TELEGRAM_BOT_TOKEN')
+    telethon_session: str = _get_env('TELETHON_SESSION', 'telethon')
+    deepseek_api_key: Optional[str] = _get_optional('DEEPSEEK_API_KEY')
+    deepseek_base_url: str = _get_env(
+        'DEEPSEEK_BASE_URL',
+        'https://api.deepseek.com',
     )
-
-    cors_origins: List[str] = Field(
-        default=["http://localhost:5173"], alias="CORS_ORIGINS"
+    cors_origins: List[str] = _get_list(
+        'CORS_ORIGINS',
+        ['http://localhost:5173'],
     )
-
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
-        populate_by_name=True,
-    )
-
-    @field_validator("cors_origins", mode="before")
-    @classmethod
-    def split_cors_origins(cls, value: object) -> List[str]:
-        if isinstance(value, list):
-            return value
-        if isinstance(value, str):
-            return [item.strip() for item in value.split(",") if item.strip()]
-        return ["http://localhost:5173"]
-
-    @field_validator(
-        "telegram_api_id",
-        "telegram_api_hash",
-        "telegram_bot_token",
-        "deepseek_api_key",
-        mode="before",
-    )
-    @classmethod
-    def empty_string_to_none(cls, value: object) -> object:
-        if isinstance(value, str) and not value.strip():
-            return None
-        return value
 
 
 settings = Settings()
