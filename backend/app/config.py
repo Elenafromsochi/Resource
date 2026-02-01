@@ -12,5 +12,3 @@ TELEGRAM_API_HASH=os.getenv('TELEGRAM_API_HASH','').strip() or None
 TELETHON_SESSION=os.getenv('TELETHON_SESSION') or 'telethon'
 DEEPSEEK_API_KEY=os.getenv('DEEPSEEK_API_KEY','').strip() or None
 DEEPSEEK_BASE_URL=os.getenv('DEEPSEEK_BASE_URL') or 'https://api.deepseek.com'
-_cors_origins_raw=os.getenv('CORS_ORIGINS','').strip()
-CORS_ORIGINS=[item.strip() for item in _cors_origins_raw.split(',') if item.strip()] if _cors_origins_raw else ['http://localhost:5173']
