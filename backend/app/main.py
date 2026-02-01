@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from contextlib import asynccontextmanager
 from typing import Optional
 
 from fastapi import Depends
@@ -26,11 +27,13 @@ from app.schemas import ChannelList
 from app.schemas import ChannelRead
 from app.telethon_service import resolve_channel
 
-app = FastAPI(title=APP_NAME, root_path=API_PREFIX)
-
-@app.on_event('startup')
-async def on_startup() -> None:
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     await init_db()
+    yield
+
+
+app = FastAPI(title=APP_NAME, root_path=API_PREFIX, lifespan=lifespan)
 
 
 def normalize_username(raw: str) -> str:
