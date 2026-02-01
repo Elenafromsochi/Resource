@@ -9,12 +9,14 @@ from fastapi import FastAPI
 from fastapi import HTTPException
 from fastapi import Query
 from fastapi import status
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import API_PREFIX
 from app.config import APP_NAME
+from app.config import CORS_ORIGINS
 from app.config import DEEPSEEK_API_KEY
 from app.db import get_session
 from app.db import init_db
@@ -34,6 +36,14 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title=APP_NAME, root_path=API_PREFIX, lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=False if '*' in CORS_ORIGINS else True,
+    allow_methods=['*'],
+    allow_headers=['*'],
+)
 
 
 def normalize_username(raw: str) -> str:

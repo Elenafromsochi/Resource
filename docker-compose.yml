@@ -25,6 +25,7 @@ services:
       POSTGRES_URL: postgresql://user:password@postgres:5432/db
       MONGO_URL: mongodb://mongo:27017
       MONGO_DB: app
+      CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
     ports:
       - 8000:8000
     volumes:
