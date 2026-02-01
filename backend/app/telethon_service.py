@@ -10,7 +10,6 @@ from telethon.errors import RPCError
 
 from app.config import TELEGRAM_API_HASH
 from app.config import TELEGRAM_API_ID
-from app.config import TELEGRAM_BOT_TOKEN
 from app.config import TELETHON_SESSION
 
 logger = logging.getLogger(__name__)
@@ -28,9 +27,6 @@ async def resolve_channel(username: str) -> Optional[Dict[str, Any]]:
 
     try:
         await client.connect()
-        if TELEGRAM_BOT_TOKEN:
-            await client.start(bot_token=TELEGRAM_BOT_TOKEN)
-
         entity = await client.get_entity(username)
         if entity is None:
             return None
