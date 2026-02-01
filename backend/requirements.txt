@@ -4,6 +4,6 @@ sqlalchemy
 asyncpg
 pydantic-settings
 python-dotenv
-motor
+pymongo
 telethon
 httpx
