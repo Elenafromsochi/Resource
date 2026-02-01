@@ -4,18 +4,21 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict
 
-from motor.motor_asyncio import AsyncIOMotorClient
+try:
+    from pymongo import AsyncMongoClient
+except ImportError:  # pragma: no cover - fallback for older pymongo layouts
+    from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 from app.config import settings
 
 logger = logging.getLogger(__name__)
-_mongo_client: AsyncIOMotorClient | None = None
+_mongo_client: AsyncMongoClient | None = None
 
 
-def get_mongo_client() -> AsyncIOMotorClient:
+def get_mongo_client() -> AsyncMongoClient:
     global _mongo_client
     if _mongo_client is None:
-        _mongo_client = AsyncIOMotorClient(settings.mongo_url)
+        _mongo_client = AsyncMongoClient(settings.mongo_url)
     return _mongo_client
 
 
