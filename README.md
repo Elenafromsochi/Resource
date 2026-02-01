@@ -25,7 +25,6 @@ export OPENAI_API_KEY="..."
 - `MATCH_THRESHOLD` (по умолчанию 80)
 - `OPENAI_GPT_MODEL` (по умолчанию gpt-4o-mini)
 - `OPENAI_WHISPER_MODEL` (по умолчанию whisper-1)
-- `OPENAI_DALLE_MODEL` (по умолчанию dall-e-3)
 
 3. Запустить:
 

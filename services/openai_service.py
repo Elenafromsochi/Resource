@@ -12,13 +12,11 @@ class OpenAIService:
         api_key: str | None,
         gpt_model: str,
         whisper_model: str,
-        dall_e_model: str,
         timeout: float = 30.0,
     ) -> None:
         self.api_key = api_key
         self.gpt_model = gpt_model
         self.whisper_model = whisper_model
-        self.dall_e_model = dall_e_model
         self._client = httpx.AsyncClient(timeout=timeout)
 
     def _headers(self) -> dict[str, str]:
@@ -86,21 +84,3 @@ class OpenAIService:
         except json.JSONDecodeError:
             return {}
 
-    async def generate_preview_image(self, prompt: str) -> str | None:
-        if not self.api_key:
-            return None
-        response = await self._client.post(
-            "https://api.openai.com/v1/images/generations",
-            headers=self._headers(),
-            json={
-                "model": self.dall_e_model,
-                "prompt": prompt,
-                "size": "1024x1024",
-            },
-        )
-        response.raise_for_status()
-        payload = response.json()
-        data = payload.get("data") or []
-        if not data:
-            return None
-        return data[0].get("url")

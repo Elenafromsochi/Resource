@@ -14,7 +14,6 @@ class Settings:
     match_threshold: int
     gpt_model: str
     whisper_model: str
-    dall_e_model: str
 
 
 def _get_env(name: str, default: str | None = None) -> str:
@@ -34,5 +33,4 @@ def load_settings() -> Settings:
         match_threshold=int(os.getenv("MATCH_THRESHOLD", "80")),
         gpt_model=os.getenv("OPENAI_GPT_MODEL", "gpt-4o-mini"),
         whisper_model=os.getenv("OPENAI_WHISPER_MODEL", "whisper-1"),
-        dall_e_model=os.getenv("OPENAI_DALLE_MODEL", "dall-e-3"),
     )

@@ -32,7 +32,6 @@ async def main() -> None:
         api_key=settings.openai_api_key,
         gpt_model=settings.gpt_model,
         whisper_model=settings.whisper_model,
-        dall_e_model=settings.dall_e_model,
     )
     dp["match_engine"] = MatchEngine(
         redis_url=settings.redis_url,
