@@ -4,11 +4,12 @@ from typing import Optional
 
 import httpx
 
-from app.config import settings
+from app.config import DEEPSEEK_API_KEY
+from app.config import DEEPSEEK_BASE_URL
 
 
 async def generate_summary(text: str) -> Optional[str]:
-    if not settings.deepseek_api_key:
+    if not DEEPSEEK_API_KEY:
         return None
 
     payload = {
@@ -23,10 +24,10 @@ async def generate_summary(text: str) -> Optional[str]:
         'temperature': 0.3,
     }
 
-    headers = {'Authorization': f'Bearer {settings.deepseek_api_key}'}
+    headers = {'Authorization': f'Bearer {DEEPSEEK_API_KEY}'}
 
     async with httpx.AsyncClient(
-        base_url=settings.deepseek_base_url, timeout=15
+        base_url=DEEPSEEK_BASE_URL, timeout=15
     ) as client:
         response = await client.post(
             '/chat/completions',

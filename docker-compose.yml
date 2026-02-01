@@ -3,8 +3,11 @@ version: '3.9'
 services:
   postgres:
     image: postgres:latest
-    env_file:
-      - .env
+    command: postgres
+    environment:
+      POSTGRES_DB: db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
     entrypoint:
       - /bin/sh
       - /usr/local/bin/postgres-entrypoint.sh
@@ -24,14 +27,9 @@ services:
   backend:
     build:
       context: ./backend
-    env_file:
-      - .env
     environment:
       MONGO_URL: mongodb://mongo:27017
       MONGO_DB: app
-      CORS_ORIGINS: http://localhost:5173
-      TELETHON_SESSION: telethon
-      DEEPSEEK_BASE_URL: https://api.deepseek.com
     depends_on:
       - postgres
       - mongo
