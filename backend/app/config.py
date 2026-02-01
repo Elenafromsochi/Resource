@@ -2,7 +2,7 @@ import os
 
 
 APP_NAME = 'tg-channel-manager'
-API_PREFIX = os.getenv('API_PREFIX', '/api')
+API_PREFIX = '/api'
 
 POSTGRES_URL = os.environ['POSTGRES_URL']
 
