@@ -1,6 +1,6 @@
 # Telegram Channel Manager
 
-Stack: Docker Compose, FastAPI, Vue.js, PostgreSQL, MongoDB, Telethon, DeepSeek API.
+Stack: Docker Compose, FastAPI, Vue.js, PostgreSQL, MongoDB, Telethon.
 
 ## Quick start
 
