@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import logging
 from typing import Any
 from typing import Dict
 from typing import Optional
+import logging
 
 from telethon import TelegramClient
 from telethon.errors import RPCError
@@ -11,6 +11,7 @@ from telethon.errors import RPCError
 from app.config import TELEGRAM_API_HASH
 from app.config import TELEGRAM_API_ID
 from app.config import TELETHON_SESSION
+
 
 logger = logging.getLogger(__name__)
 

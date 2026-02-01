@@ -27,7 +27,8 @@ async def generate_summary(text: str) -> Optional[str]:
     headers = {'Authorization': f'Bearer {DEEPSEEK_API_KEY}'}
 
     async with httpx.AsyncClient(
-        base_url=DEEPSEEK_BASE_URL, timeout=15
+        base_url=DEEPSEEK_BASE_URL,
+        timeout=15,
     ) as client:
         response = await client.post(
             '/chat/completions',

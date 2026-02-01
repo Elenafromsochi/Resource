@@ -2,14 +2,15 @@ from __future__ import annotations
 
 from datetime import datetime
 from datetime import timezone
-import logging
 from typing import Any
 from typing import Dict
+import logging
 
 from pymongo import AsyncMongoClient
 
 from app.config import MONGO_DB
 from app.config import MONGO_URL
+
 
 logger = logging.getLogger(__name__)
 _mongo_client: AsyncMongoClient | None = None
@@ -34,7 +35,7 @@ async def log_channel_event(event_type: str, payload: Dict[str, Any]) -> None:
                 'event_type': event_type,
                 'payload': payload,
                 'created_at': datetime.now(timezone.utc),
-            }
+            },
         )
     except Exception as exc:  # pragma: no cover - logging only
         logger.warning('Failed to log event to MongoDB: %s', exc)
