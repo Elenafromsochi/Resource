@@ -7,6 +7,7 @@ os.environ.setdefault('MONGO_DB', 'test')
 os.environ.setdefault('TELEGRAM_API_ID', '12345')
 os.environ.setdefault('TELEGRAM_API_HASH', 'hash')
 os.environ.setdefault('TELETHON_SESSION', 'session')
+os.environ.setdefault('DEEPSEEK_API_KEY', 'test')
 
 from app.api.channels import normalize_username
 

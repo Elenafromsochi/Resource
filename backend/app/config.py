@@ -25,5 +25,7 @@ TELEGRAM_API_HASH = os.environ['TELEGRAM_API_HASH']
 
 TELETHON_SESSION = os.environ['TELETHON_SESSION']
 
+DEEPSEEK_API_KEY = os.environ['DEEPSEEK_API_KEY']
+
 MIGRATIONS_DIR = Path(__file__).resolve().parent / 'storage' / 'migrations'
 

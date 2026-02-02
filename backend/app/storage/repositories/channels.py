@@ -41,6 +41,18 @@ class ChannelsRepository:
         )
         return [dict(row) for row in rows]
 
+    async def list_by_ids(self, channel_ids: list[int]) -> list[dict[str, Any]]:
+        rows = await self.db.fetch(
+            """
+            SELECT id, username, title, created_at
+            FROM channels
+            WHERE id = ANY($1::BIGINT[])
+            ORDER BY created_at DESC
+            """,
+            channel_ids,
+        )
+        return [dict(row) for row in rows]
+
     async def create(
         self,
         channel_id: int,
