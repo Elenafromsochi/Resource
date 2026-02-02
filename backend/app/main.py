@@ -41,9 +41,9 @@ app = FastAPI(
     title=APP_NAME,
     lifespan=lifespan,
     root_path=API_PREFIX,
-    openapi_url=f'{API_PREFIX}/openapi.json',
-    docs_url=f'{API_PREFIX}/docs',
-    redoc_url=f'{API_PREFIX}/redoc',
+    openapi_url='/openapi.json',
+    docs_url='/docs',
+    redoc_url='/redoc',
 )
 register_exception_handlers(app)
 app.add_middleware(
@@ -54,8 +54,8 @@ app.add_middleware(
     allow_headers=['*'],
 )
 
-app.include_router(health_router, prefix=API_PREFIX)
-app.include_router(channels_router, prefix=API_PREFIX)
-app.include_router(hashtags_router, prefix=API_PREFIX)
-app.include_router(prompts_router, prefix=API_PREFIX)
-app.include_router(analysis_router, prefix=API_PREFIX)
+app.include_router(health_router)
+app.include_router(channels_router)
+app.include_router(hashtags_router)
+app.include_router(prompts_router)
+app.include_router(analysis_router)
