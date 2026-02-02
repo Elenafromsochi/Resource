@@ -16,7 +16,7 @@
         <div class="card-header">
           <div>
             <h2>Prompt management</h2>
-            <p class="muted">Create and maintain prompts for analysis.</p>
+            <p class="muted">Create and maintain system prompts for analysis.</p>
           </div>
           <button type="button" class="secondary" @click="fetchPrompts">
             Refresh
@@ -38,11 +38,11 @@
                 />
               </label>
               <label>
-                Prompt content
+                System prompt content
                 <textarea
                   v-model="promptForm.content"
                   rows="5"
-                  placeholder="Describe what the model should extract."
+                  placeholder="Write the full system instruction."
                   required
                 ></textarea>
               </label>
@@ -90,7 +90,7 @@
                       <input v-model="promptEditForm.name" required />
                     </label>
                     <label>
-                      Prompt content
+                  System prompt content
                       <textarea v-model="promptEditForm.content" rows="4" required></textarea>
                     </label>
                     <div class="inline-actions">
@@ -147,15 +147,6 @@
             <input type="datetime-local" v-model="analysisForm.endDate" required />
           </label>
           <label>
-            Max input tokens
-            <input
-              type="number"
-              min="1"
-              v-model="analysisForm.maxInputTokens"
-              placeholder="Optional"
-            />
-          </label>
-          <label>
             Max messages per channel
             <input
               type="number"
@@ -167,10 +158,6 @@
           <label class="toggle">
             <input type="checkbox" v-model="analysisForm.limitToChannels" />
             Limit to selected channels
-          </label>
-          <label class="toggle">
-            <input type="checkbox" v-model="analysisForm.saveToDb" />
-            Save all found hashtags to DB
           </label>
           <button type="submit" :disabled="analysisLoading || !prompts.length">
             Run analysis
@@ -254,13 +241,6 @@
               {{ label }}
             </span>
           </div>
-          <div
-            v-if="analysisResult.added_to_db && analysisResult.added_to_db.length"
-            class="success"
-          >
-            Added to DB during analysis: {{ analysisResult.added_to_db.join(", ") }}
-          </div>
-
           <div class="analysis-actions">
             <button
               type="button"
@@ -292,11 +272,13 @@
           <ul v-if="analysisHashtags.length" class="analysis-list">
             <li v-for="item in analysisHashtags" :key="item.tag">
               <label class="analysis-item">
+                <input v-if="item.in_db" type="checkbox" checked disabled />
                 <input
+                  v-else
                   type="checkbox"
                   :value="item.tag"
                   v-model="analysisSelectedTags"
-                  :disabled="item.in_db || analysisAddLoading"
+                  :disabled="analysisAddLoading"
                 />
                 <div class="analysis-info">
                   <strong>{{ item.tag }}</strong>
@@ -517,8 +499,6 @@ const analysisForm = ref({
   endDate: "",
   limitToChannels: false,
   channelIds: [],
-  saveToDb: false,
-  maxInputTokens: "",
   maxMessagesPerChannel: "",
 });
 const analysisResult = ref(null);
@@ -918,13 +898,9 @@ const runAnalysis = async () => {
       prompt_id: promptId,
       start_date: toApiDateTime(analysisForm.value.startDate),
       end_date: toApiDateTime(analysisForm.value.endDate),
-      save_to_db: analysisForm.value.saveToDb,
     };
     if (analysisForm.value.limitToChannels) {
       payload.channel_ids = analysisForm.value.channelIds.map((id) => Number(id));
-    }
-    if (analysisForm.value.maxInputTokens) {
-      payload.max_input_tokens = Number(analysisForm.value.maxInputTokens);
     }
     if (analysisForm.value.maxMessagesPerChannel) {
       payload.max_messages_per_channel = Number(analysisForm.value.maxMessagesPerChannel);
@@ -947,9 +923,6 @@ const runAnalysis = async () => {
     analysisResult.value = data;
     analysisSelectedTags.value = [];
 
-    if (data.added_to_db && data.added_to_db.length) {
-      await fetchHashtags();
-    }
   } catch (err) {
     analysisError.value = err.message || "Analysis error.";
   } finally {
@@ -1028,9 +1001,6 @@ const addSelectedHashtags = async () => {
         ...analysisResult.value,
         hashtags: analysisResult.value.hashtags.map((item) =>
           updated.has(item.tag) ? { ...item, in_db: true } : item
-        ),
-        added_to_db: Array.from(
-          new Set([...(analysisResult.value.added_to_db || []), ...added])
         ),
       };
     }

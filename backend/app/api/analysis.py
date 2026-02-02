@@ -5,21 +5,14 @@ import logging
 from fastapi import APIRouter
 from fastapi import Depends
 
-from app.analysis_utils import chunk_blocks
 from app.analysis_utils import ensure_aware
-from app.analysis_utils import estimate_tokens
 from app.analysis_utils import extract_json_payload
 from app.analysis_utils import format_message_block
 from app.analysis_utils import merge_hashtag_counts
-from app.analysis_utils import trim_message_texts
 from app.api.dependencies import get_deepseek
 from app.api.dependencies import get_storage
 from app.api.dependencies import get_telegram
-from app.config import ANALYSIS_PROMPT_TEMPLATE
-from app.config import ANALYSIS_SYSTEM_PROMPT
-from app.config import DEEPSEEK_MAX_INPUT_TOKENS
 from app.config import DEEPSEEK_MAX_OUTPUT_TOKENS
-from app.config import DEEPSEEK_MAX_TOTAL_TOKENS
 from app.config import DEEPSEEK_TEMPERATURE
 from app.deepseek import DeepSeek
 from app.exceptions import ExternalServiceError
@@ -35,14 +28,6 @@ from app.telethon_service import TelegramService
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix='/analysis', tags=['analysis'])
-
-
-def build_base_prompt(prompt: str, hashtags: list[str]) -> str:
-    hashtags_block = '\n'.join(hashtags) if hashtags else ''
-    return ANALYSIS_PROMPT_TEMPLATE.format(
-        prompt=prompt,
-        hashtags=hashtags_block,
-    ).strip()
 
 
 @router.post('/hashtags', response_model=HashtagAnalysisResponse)
@@ -79,20 +64,9 @@ async def analyze_hashtags(
             channels=[],
             total_messages=0,
             hashtags=[],
-            added_to_db=[] if payload.save_to_db else None,
         )
 
     existing_hashtags = await storage.hashtags.list_all()
-    base_prompt = build_base_prompt(prompt['content'], existing_hashtags)
-    base_tokens = estimate_tokens(base_prompt)
-    max_input_tokens = payload.max_input_tokens or DEEPSEEK_MAX_INPUT_TOKENS
-    if max_input_tokens > DEEPSEEK_MAX_INPUT_TOKENS:
-        raise ValidationError('Input token budget exceeds limit')
-    if max_input_tokens + DEEPSEEK_MAX_OUTPUT_TOKENS > DEEPSEEK_MAX_TOTAL_TOKENS:
-        raise ValidationError('Token budget exceeds DeepSeek limit')
-    if base_tokens >= max_input_tokens:
-        raise ValidationError('Prompt and hashtags exceed token budget')
-
     messages = await telegram.fetch_channel_messages(
         channel_ids,
         start_date=start_date,
@@ -108,32 +82,25 @@ async def analyze_hashtags(
             channels=channel_ids,
             total_messages=0,
             hashtags=[],
-            added_to_db=[] if payload.save_to_db else None,
         )
 
-    max_block_tokens = max_input_tokens - base_tokens
-    trimmed = [trim_message_texts(message, max_block_tokens) for message in messages]
-    blocks = [format_message_block(message) for message in trimmed]
-    chunks = chunk_blocks(blocks, base_tokens=base_tokens, max_tokens=max_input_tokens)
-
     counts: dict[str, int] = {}
-    for chunk in chunks:
-        user_content = base_prompt + '\n\n' + '\n\n'.join(chunk)
-        try:
-            content = await deepseek.chat(
-                [
-                    {'role': 'system', 'content': ANALYSIS_SYSTEM_PROMPT},
-                    {'role': 'user', 'content': user_content},
-                ],
-                max_tokens=DEEPSEEK_MAX_OUTPUT_TOKENS,
-                temperature=DEEPSEEK_TEMPERATURE,
-            )
-        except ExternalServiceError:
-            raise
-        except Exception as exc:
-            logger.warning('DeepSeek analysis failed: %s', exc)
-            raise ExternalServiceError('DeepSeek request failed') from exc
+    blocks = [format_message_block(message) for message in messages]
+    try:
+        responses = await deepseek.chat_in_chunks(
+            system_prompt=prompt['content'],
+            hashtags=existing_hashtags,
+            message_blocks=blocks,
+            max_tokens=DEEPSEEK_MAX_OUTPUT_TOKENS,
+            temperature=DEEPSEEK_TEMPERATURE,
+        )
+    except ExternalServiceError:
+        raise
+    except Exception as exc:
+        logger.warning('DeepSeek analysis failed: %s', exc)
+        raise ExternalServiceError('DeepSeek request failed') from exc
 
+    for content in responses:
         try:
             payload_data = extract_json_payload(content)
         except Exception as exc:
@@ -147,14 +114,6 @@ async def analyze_hashtags(
             merge_hashtag_counts(counts, items)
 
     existing_set = set(existing_hashtags)
-    added: list[str] = []
-    if payload.save_to_db:
-        for tag in counts:
-            if tag in existing_set:
-                continue
-            created = await storage.hashtags.create(tag=tag)
-            existing_set.add(created['tag'])
-            added.append(created['tag'])
 
     hashtags_sorted = sorted(
         counts.items(),
@@ -172,5 +131,4 @@ async def analyze_hashtags(
         channels=channel_ids,
         total_messages=len(messages),
         hashtags=hashtags,
-        added_to_db=added if payload.save_to_db else None,
     )
