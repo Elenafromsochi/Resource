@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+from datetime import timezone
 from typing import Any
 from typing import Optional
 import logging
@@ -97,3 +99,123 @@ async def search_channels(query: str, limit: int = 10) -> list[dict[str, Any]]:
         return []
     finally:
         await client.disconnect()
+
+
+def normalize_message_date(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
+
+
+def extract_peer_id(peer: Any) -> int | None:
+    if isinstance(peer, types.PeerUser):
+        return peer.user_id
+    if isinstance(peer, types.PeerChannel):
+        return peer.channel_id
+    if isinstance(peer, types.PeerChat):
+        return peer.chat_id
+    return None
+
+
+async def build_reply_data(
+    message: types.Message,
+    reply_cache: dict[tuple[int, int], dict[str, Any]],
+    channel_id: int,
+) -> dict[str, Any] | None:
+    reply_id = message.reply_to_msg_id
+    if not reply_id:
+        return None
+    cache_key = (channel_id, reply_id)
+    cached = reply_cache.get(cache_key)
+    if cached:
+        return cached
+    reply_data: dict[str, Any] = {
+        'message_id': reply_id,
+        'user_id': None,
+        'text': '',
+    }
+    try:
+        reply_message = await message.get_reply_message()
+    except (RPCError, Exception) as exc:
+        logger.warning('Telethon failed to fetch reply %s: %s', reply_id, exc)
+        reply_message = None
+    if reply_message:
+        reply_data = {
+            'message_id': reply_message.id,
+            'user_id': reply_message.sender_id,
+            'text': reply_message.message or '',
+        }
+    reply_cache[cache_key] = reply_data
+    return reply_data
+
+
+def build_forwarded_data(message: types.Message) -> dict[str, Any] | None:
+    if not message.fwd_from:
+        return None
+    fwd = message.fwd_from
+    from_user_id = None
+    from_channel_id = fwd.channel_id
+    if fwd.from_id:
+        peer_id = extract_peer_id(fwd.from_id)
+        if isinstance(fwd.from_id, types.PeerUser):
+            from_user_id = peer_id
+        if isinstance(fwd.from_id, types.PeerChannel):
+            from_channel_id = peer_id
+    from_name = fwd.from_name or fwd.post_author
+    return {
+        'from_user_id': from_user_id,
+        'from_channel_id': from_channel_id,
+        'from_name': from_name,
+        'from_message_id': fwd.channel_post,
+    }
+
+
+async def fetch_channel_messages(
+    channel_ids: list[int],
+    *,
+    start_date: datetime,
+    end_date: datetime,
+    max_messages: int | None = None,
+) -> list[dict[str, Any]]:
+    client = TelegramClient(
+        StringSession(TELETHON_SESSION),
+        TELEGRAM_API_ID,
+        TELEGRAM_API_HASH,
+    )
+    reply_cache: dict[tuple[int, int], dict[str, Any]] = {}
+    collected: list[dict[str, Any]] = []
+    try:
+        await client.connect()
+        for channel_id in channel_ids:
+            entity = await client.get_entity(channel_id)
+            channel_messages: list[dict[str, Any]] = []
+            async for message in client.iter_messages(entity, offset_date=end_date):
+                message_date = normalize_message_date(message.date)
+                if message_date < start_date:
+                    break
+                if message_date > end_date:
+                    continue
+                text = message.message or ''
+                if not text:
+                    continue
+                reply_data = await build_reply_data(message, reply_cache, channel_id)
+                forwarded = build_forwarded_data(message)
+                channel_messages.append(
+                    {
+                        'channel_id': channel_id,
+                        'message_id': message.id,
+                        'user_id': message.sender_id,
+                        'date': message_date,
+                        'text': text,
+                        'reply_to': reply_data,
+                        'forwarded': forwarded,
+                    },
+                )
+                if max_messages and len(channel_messages) >= max_messages:
+                    break
+            collected.extend(channel_messages)
+    except (RPCError, Exception) as exc:
+        logger.warning('Telethon failed to fetch channel messages: %s', exc)
+    finally:
+        await client.disconnect()
+    return collected

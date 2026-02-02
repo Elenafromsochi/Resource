@@ -34,6 +34,16 @@ class HashtagsRepository:
         total = await self.db.fetchval("SELECT COUNT(*) FROM hashtags")
         return [dict(row) for row in rows], int(total or 0)
 
+    async def list_all(self) -> list[str]:
+        rows = await self.db.fetch(
+            """
+            SELECT tag
+            FROM hashtags
+            ORDER BY tag ASC
+            """,
+        )
+        return [row['tag'] for row in rows]
+
     async def create(self, tag: str) -> dict[str, Any]:
         row = await self.db.fetchrow(
             """

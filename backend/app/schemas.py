@@ -54,3 +54,53 @@ class HashtagList(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class PromptCreate(BaseModel):
+    name: str = Field(...)
+    content: str = Field(...)
+
+
+class PromptUpdate(BaseModel):
+    name: str | None = None
+    content: str | None = None
+
+
+class PromptRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    content: str
+    created_at: datetime | None
+    updated_at: datetime | None
+
+
+class PromptList(BaseModel):
+    items: list[PromptRead]
+
+
+class HashtagFrequency(BaseModel):
+    tag: str
+    count: int
+    in_db: bool
+
+
+class HashtagAnalysisRequest(BaseModel):
+    prompt_id: int
+    start_date: datetime
+    end_date: datetime
+    channel_ids: list[int] | None = None
+    save_to_db: bool = False
+    max_input_tokens: int | None = None
+    max_messages_per_channel: int | None = None
+
+
+class HashtagAnalysisResponse(BaseModel):
+    prompt_id: int
+    start_date: datetime
+    end_date: datetime
+    channels: list[int]
+    total_messages: int
+    hashtags: list[HashtagFrequency]
+    added_to_db: list[str] | None = None

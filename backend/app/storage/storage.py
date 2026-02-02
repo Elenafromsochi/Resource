@@ -3,6 +3,7 @@ from __future__ import annotations
 from app.storage.database import Database
 from app.storage.repositories.channels import ChannelsRepository
 from app.storage.repositories.hashtags import HashtagsRepository
+from app.storage.repositories.prompts import PromptsRepository
 
 
 class Storage:
@@ -10,6 +11,7 @@ class Storage:
         self.db = db
         self.channels = ChannelsRepository(db)
         self.hashtags = HashtagsRepository(db)
+        self.prompts = PromptsRepository(db)
 
     @classmethod
     async def create(cls, dsn: str) -> "Storage":
