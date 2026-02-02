@@ -14,6 +14,44 @@
     <div class="grid">
       <section class="card">
         <h2>Add a channel</h2>
+        <form class="form" @submit.prevent="searchChannels">
+          <label>
+            Search in Telegram
+            <input
+              v-model="channelSearch.query"
+              placeholder="Keywords, title, description"
+            />
+          </label>
+          <button type="submit" class="secondary" :disabled="channelSearchLoading">
+            Search
+          </button>
+        </form>
+        <div v-if="channelSearchError" class="error">{{ channelSearchError }}</div>
+        <div v-if="channelSearchLoading" class="loading">Searching...</div>
+        <div v-else>
+          <ul v-if="channelSearchResults.length" class="channel-list">
+            <li v-for="channel in channelSearchResults" :key="channel.id">
+              <div class="channel-info">
+                <strong>{{ channel.title || channel.username || channel.id }}</strong>
+                <span v-if="channel.username" class="meta">@{{ channel.username }}</span>
+                <span v-else class="meta">ID: {{ channel.id }}</span>
+                <span v-if="channel.description" class="meta">{{ channel.description }}</span>
+              </div>
+              <button
+                type="button"
+                class="secondary"
+                :disabled="!channel.username || channelLoading"
+                @click="addFromSearch(channel)"
+              >
+                Add
+              </button>
+            </li>
+          </ul>
+          <p v-else-if="channelSearchHasRun && !channelSearchError" class="empty">
+            No channels found.
+          </p>
+        </div>
+
         <form class="form" @submit.prevent="createChannel">
           <label>
             Username or link
@@ -22,10 +60,6 @@
               placeholder="@channel or https://t.me/channel"
               required
             />
-          </label>
-          <label>
-            Title (optional)
-            <input v-model="channelForm.title" placeholder="Channel title" />
           </label>
           <button type="submit" :disabled="channelLoading">Add</button>
         </form>
@@ -143,8 +177,14 @@ const channelLoading = ref(false);
 const channelError = ref("");
 const channelForm = ref({
   username: "",
-  title: "",
 });
+const channelSearch = ref({
+  query: "",
+});
+const channelSearchResults = ref([]);
+const channelSearchLoading = ref(false);
+const channelSearchError = ref("");
+const channelSearchHasRun = ref(false);
 
 const hashtags = ref([]);
 const hashtagsTotal = ref(0);
@@ -182,8 +222,10 @@ const fetchChannels = async () => {
   }
 };
 
-const createChannel = async () => {
-  if (!channelForm.value.username.trim()) {
+const createChannel = async (overrideUsername) => {
+  const hasOverride = typeof overrideUsername === "string";
+  const username = hasOverride ? overrideUsername : channelForm.value.username;
+  if (!username.trim()) {
     channelError.value = "Channel username is required.";
     return;
   }
@@ -196,8 +238,7 @@ const createChannel = async () => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        username: channelForm.value.username,
-        title: channelForm.value.title || null,
+        username,
       }),
     });
 
@@ -206,13 +247,51 @@ const createChannel = async () => {
       throw new Error(payload?.detail || "Unable to add channel.");
     }
 
-    channelForm.value = { username: "", title: "" };
+    if (!hasOverride) {
+      channelForm.value = { username: "" };
+    }
     await fetchChannels();
   } catch (err) {
     channelError.value = err.message || "Create error.";
   } finally {
     channelLoading.value = false;
   }
+};
+
+const searchChannels = async () => {
+  const query = channelSearch.value.query.trim();
+  if (!query) {
+    channelSearchError.value = "Search query is required.";
+    channelSearchResults.value = [];
+    channelSearchHasRun.value = false;
+    return;
+  }
+  channelSearchLoading.value = true;
+  channelSearchError.value = "";
+  try {
+    const response = await fetch(
+      `${apiBase}/api/channels/search?q=${encodeURIComponent(query)}`
+    );
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error(payload?.detail || "Unable to search channels.");
+    }
+    const data = await response.json();
+    channelSearchResults.value = data.items || [];
+  } catch (err) {
+    channelSearchError.value = err.message || "Search error.";
+  } finally {
+    channelSearchLoading.value = false;
+    channelSearchHasRun.value = true;
+  }
+};
+
+const addFromSearch = async (channel) => {
+  if (!channel.username) {
+    channelError.value = "Selected channel has no username.";
+    return;
+  }
+  await createChannel(channel.username);
 };
 
 const deleteChannel = async (id) => {
