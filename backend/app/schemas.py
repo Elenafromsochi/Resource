@@ -6,15 +6,11 @@ from pydantic import BaseModel
 from pydantic import ConfigDict
 from pydantic import Field
 
-from app.config import CHANNEL_USERNAME_MAX_LENGTH
-from app.config import HASHTAG_MAX_LENGTH
-
 
 class ChannelCreate(BaseModel):
     username: str = Field(
         ...,
         min_length=2,
-        max_length=CHANNEL_USERNAME_MAX_LENGTH,
     )
 
 
@@ -43,7 +39,7 @@ class ChannelSearchList(BaseModel):
 
 
 class HashtagCreate(BaseModel):
-    tag: str = Field(..., min_length=1, max_length=HASHTAG_MAX_LENGTH)
+    tag: str = Field(..., min_length=1)
 
 
 class HashtagRead(BaseModel):

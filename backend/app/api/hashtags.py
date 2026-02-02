@@ -8,7 +8,6 @@ from fastapi import status
 
 from app.api.dependencies import get_storage
 from app.config import DEFAULT_PAGE_SIZE
-from app.config import HASHTAG_MAX_LENGTH
 from app.config import HASHTAG_PREFIX
 from app.config import MAX_PAGE_SIZE
 from app.schemas import HashtagCreate
@@ -37,12 +36,6 @@ def normalize_hashtag(raw: str) -> str:
         )
 
     value = value.lower()
-    if len(value) > HASHTAG_MAX_LENGTH:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Hashtag is too long",
-        )
-
     return value
 
 
