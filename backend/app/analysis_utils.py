@@ -155,6 +155,22 @@ def trim_message_texts(message: dict[str, Any], max_tokens: int) -> dict[str, An
     message['text'] = truncate_text(message_text, message_share)
     if message.get('reply_to'):
         message['reply_to']['text'] = truncate_text(reply_text, reply_share)
+
+    block_tokens = estimate_tokens(format_message_block(message))
+    if block_tokens <= max_tokens:
+        return message
+
+    if message.get('reply_to') and message['reply_to'].get('text'):
+        message['reply_to']['text'] = ''
+        block_tokens = estimate_tokens(format_message_block(message))
+        if block_tokens <= max_tokens:
+            return message
+
+    message_tokens = estimate_tokens(message.get('text') or '')
+    excess = block_tokens - max_tokens
+    if excess > 0 and message_tokens > 0:
+        allowed_tokens = max(0, message_tokens - excess)
+        message['text'] = truncate_text(message.get('text') or '', allowed_tokens)
     return message
 
 
