@@ -10,7 +10,6 @@ from pydantic import Field
 class ChannelCreate(BaseModel):
     username: str = Field(
         ...,
-        min_length=2,
     )
 
 
@@ -39,7 +38,7 @@ class ChannelSearchList(BaseModel):
 
 
 class HashtagCreate(BaseModel):
-    tag: str = Field(..., min_length=1)
+    tag: str = Field(...)
 
 
 class HashtagRead(BaseModel):
