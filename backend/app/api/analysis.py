@@ -68,7 +68,7 @@ async def analyze_hashtags(
 
     existing_hashtags = await storage.hashtags.list_all()
     messages = await telegram.fetch_channel_messages(
-        channel_ids,
+        channels,
         start_date=start_date,
         end_date=end_date,
         max_messages=payload.max_messages_per_channel,

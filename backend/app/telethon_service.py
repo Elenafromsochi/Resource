@@ -161,7 +161,7 @@ class TelegramService:
 
     async def fetch_channel_messages(
         self,
-        channel_ids: list[int],
+        channels: list[dict[str, Any]],
         *,
         start_date: datetime,
         end_date: datetime,
@@ -171,8 +171,11 @@ class TelegramService:
         reply_cache: dict[tuple[int, int], dict[str, Any]] = {}
         collected: list[dict[str, Any]] = []
         try:
-            for channel_id in channel_ids:
-                entity = await self.client.get_entity(channel_id)
+            for channel in channels:
+                channel_id = int(channel['id'])
+                username = channel.get('username')
+                lookup = username or channel_id
+                entity = await self.client.get_entity(lookup)
                 channel_messages: list[dict[str, Any]] = []
                 async for message in self.client.iter_messages(entity, offset_date=end_date):
                     message_date = normalize_message_date(message.date)
