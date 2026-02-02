@@ -146,11 +146,21 @@
           </label>
           <label>
             Start date
-            <input type="datetime-local" v-model="analysisForm.startDate" required />
+            <input
+              type="text"
+              v-model="analysisForm.startDate"
+              placeholder="ДД.ММ.ГГГГ чч:мм"
+              required
+            />
           </label>
           <label>
             End date
-            <input type="datetime-local" v-model="analysisForm.endDate" required />
+            <input
+              type="text"
+              v-model="analysisForm.endDate"
+              placeholder="ДД.ММ.ГГГГ чч:мм"
+              required
+            />
           </label>
           <label>
             Max messages per channel
@@ -477,7 +487,6 @@
               <tr>
                 <th>Channel</th>
                 <th>Username / ID</th>
-                <th>Created (ISO)</th>
                 <th class="table-actions">Action</th>
               </tr>
             </thead>
@@ -491,9 +500,6 @@
                 <td class="cell-subtle">
                   <span v-if="channel.username">@{{ channel.username }}</span>
                   <span v-else>ID: {{ channel.id }}</span>
-                </td>
-                <td class="cell-subtle">
-                  {{ channel.created_at ? formatTimestamp(channel.created_at) : "-" }}
                 </td>
                 <td class="table-actions">
                   <button
@@ -535,7 +541,6 @@
             <thead>
               <tr>
                 <th>Hashtag</th>
-                <th>Created (ISO)</th>
                 <th class="table-actions">Action</th>
               </tr>
             </thead>
@@ -543,9 +548,6 @@
               <tr v-for="tag in hashtags" :key="tag.id">
                 <td>
                   <span class="cell-title">{{ tag.tag }}</span>
-                </td>
-                <td class="cell-subtle">
-                  {{ tag.created_at ? formatTimestamp(tag.created_at) : "-" }}
                 </td>
                 <td class="table-actions">
                   <button
@@ -693,34 +695,73 @@ const analysisChannelRows = computed(() => {
   });
 });
 
-const toLocalDateTimeValue = (value) => {
-  const pad = (number) => String(number).padStart(2, "0");
-  return (
-    `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}` +
-    `T${pad(value.getHours())}:${pad(value.getMinutes())}`
-  );
+const pad2 = (number) => String(number).padStart(2, "0");
+
+const formatRussianDateTime = (date) =>
+  `${pad2(date.getDate())}.${pad2(date.getMonth() + 1)}.${date.getFullYear()} ` +
+  `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+
+const parseRussianDateTime = (value) => {
+  const match = String(value)
+    .trim()
+    .match(/^(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})$/);
+  if (!match) {
+    return null;
+  }
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const date = new Date(year, month - 1, day, hour, minute);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day ||
+    date.getHours() !== hour ||
+    date.getMinutes() !== minute
+  ) {
+    return null;
+  }
+  return date;
+};
+
+const parseDateTimeInput = (value) => {
+  if (!value) {
+    return null;
+  }
+  if (value instanceof Date) {
+    return value;
+  }
+  const raw = String(value).trim();
+  const russianDate = parseRussianDateTime(raw);
+  if (russianDate) {
+    return russianDate;
+  }
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return parsed;
 };
 
 const toApiDateTime = (value) => {
   if (!value) {
     return value;
   }
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
+  const date = parseDateTimeInput(value);
+  if (!date) {
     return value;
   }
   return date.toISOString();
 };
 
 const formatTimestamp = (value) => {
-  if (!value) {
-    return "";
+  const date = parseDateTimeInput(value);
+  if (!date) {
+    return value ? String(value) : "";
   }
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return String(value);
-  }
-  return date.toISOString();
+  return formatRussianDateTime(date);
 };
 
 const ensurePromptSelection = () => {
@@ -749,8 +790,8 @@ const initDateRange = () => {
   const now = new Date();
   const start = new Date(now);
   start.setDate(start.getDate() - 7);
-  analysisForm.value.startDate = toLocalDateTimeValue(start);
-  analysisForm.value.endDate = toLocalDateTimeValue(now);
+  analysisForm.value.startDate = formatRussianDateTime(start);
+  analysisForm.value.endDate = formatRussianDateTime(now);
 };
 
 const fetchChannels = async () => {
@@ -1047,9 +1088,9 @@ const runAnalysis = async () => {
     analysisError.value = "Start and end date are required.";
     return;
   }
-  const startDate = new Date(analysisForm.value.startDate);
-  const endDate = new Date(analysisForm.value.endDate);
-  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+  const startDate = parseDateTimeInput(analysisForm.value.startDate);
+  const endDate = parseDateTimeInput(analysisForm.value.endDate);
+  if (!startDate || !endDate) {
     analysisError.value = "Invalid date range.";
     return;
   }
