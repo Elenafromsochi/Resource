@@ -8,6 +8,8 @@ import logging
 import math
 import re
 
+from app.config import TOKEN_ESTIMATE_CHARS
+
 
 logger = logging.getLogger(__name__)
 
@@ -21,13 +23,13 @@ def ensure_aware(value: datetime) -> datetime:
 def estimate_tokens(text: str) -> int:
     if not text:
         return 0
-    return max(1, math.ceil(len(text) / 4))
+    return max(1, math.ceil(len(text) / TOKEN_ESTIMATE_CHARS))
 
 
 def truncate_text(text: str, max_tokens: int) -> str:
     if max_tokens <= 0:
         return ''
-    max_chars = max_tokens * 4
+    max_chars = max_tokens * TOKEN_ESTIMATE_CHARS
     if len(text) <= max_chars:
         return text
     return text[:max_chars].rstrip()

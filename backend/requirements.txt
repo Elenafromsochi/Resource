@@ -3,4 +3,4 @@ uvicorn[standard]
 asyncpg
 pymongo
 telethon
-httpx
+openai

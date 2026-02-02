@@ -4,8 +4,6 @@ import logging
 
 from fastapi import APIRouter
 from fastapi import Depends
-from fastapi import HTTPException
-from fastapi import status
 
 from app.analysis_utils import chunk_blocks
 from app.analysis_utils import ensure_aware
@@ -16,43 +14,34 @@ from app.analysis_utils import merge_hashtag_counts
 from app.analysis_utils import trim_message_texts
 from app.api.dependencies import get_deepseek
 from app.api.dependencies import get_storage
+from app.api.dependencies import get_telegram
+from app.config import ANALYSIS_PROMPT_TEMPLATE
+from app.config import ANALYSIS_SYSTEM_PROMPT
+from app.config import DEEPSEEK_MAX_INPUT_TOKENS
+from app.config import DEEPSEEK_MAX_OUTPUT_TOKENS
+from app.config import DEEPSEEK_MAX_TOTAL_TOKENS
+from app.config import DEEPSEEK_TEMPERATURE
 from app.deepseek import DeepSeek
+from app.exceptions import ExternalServiceError
+from app.exceptions import NotFoundError
+from app.exceptions import ValidationError
 from app.schemas import HashtagAnalysisRequest
 from app.schemas import HashtagAnalysisResponse
 from app.schemas import HashtagFrequency
 from app.storage import Storage
-from app.telethon_service import fetch_channel_messages
+from app.telethon_service import TelegramService
 
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix='/analysis', tags=['analysis'])
 
-DEFAULT_MAX_INPUT_TOKENS = 12000
-DEFAULT_MAX_OUTPUT_TOKENS = 1000
-
-SYSTEM_PROMPT = (
-    'You analyze Telegram channel messages. '
-    'Follow the instruction in the user prompt block. '
-    'Use existing hashtags as hints but feel free to suggest new ones. '
-    'Count hashtags only within the provided messages. '
-    'Return JSON only in this shape: '
-    '{"hashtags":[{"tag":"#example","count":3}]}'
-)
-
 
 def build_base_prompt(prompt: str, hashtags: list[str]) -> str:
     hashtags_block = '\n'.join(hashtags) if hashtags else ''
-    return '\n'.join(
-        [
-            'PROMPT:',
-            prompt,
-            '',
-            'EXISTING_HASHTAGS:',
-            hashtags_block,
-            '',
-            'MESSAGES:',
-        ],
+    return ANALYSIS_PROMPT_TEMPLATE.format(
+        prompt=prompt,
+        hashtags=hashtags_block,
     ).strip()
 
 
@@ -61,31 +50,23 @@ async def analyze_hashtags(
     payload: HashtagAnalysisRequest,
     storage: Storage = Depends(get_storage),
     deepseek: DeepSeek = Depends(get_deepseek),
+    telegram: TelegramService = Depends(get_telegram),
 ):
     start_date = ensure_aware(payload.start_date)
     end_date = ensure_aware(payload.end_date)
     if end_date < start_date:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail='End date must be after start date',
-        )
+        raise ValidationError('End date must be after start date')
 
     prompt = await storage.prompts.get_by_id(payload.prompt_id)
     if not prompt:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail='Prompt not found',
-        )
+        raise NotFoundError('Prompt not found')
 
     if payload.channel_ids:
         channels = await storage.channels.list_by_ids(payload.channel_ids)
         channel_ids = [channel['id'] for channel in channels]
         missing = [channel_id for channel_id in payload.channel_ids if channel_id not in channel_ids]
         if missing:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f'Channels not found: {missing}',
-            )
+            raise NotFoundError(f'Channels not found: {missing}')
     else:
         channels = await storage.channels.list()
         channel_ids = [channel['id'] for channel in channels]
@@ -104,14 +85,15 @@ async def analyze_hashtags(
     existing_hashtags = await storage.hashtags.list_all()
     base_prompt = build_base_prompt(prompt['content'], existing_hashtags)
     base_tokens = estimate_tokens(base_prompt)
-    max_input_tokens = payload.max_input_tokens or DEFAULT_MAX_INPUT_TOKENS
+    max_input_tokens = payload.max_input_tokens or DEEPSEEK_MAX_INPUT_TOKENS
+    if max_input_tokens > DEEPSEEK_MAX_INPUT_TOKENS:
+        raise ValidationError('Input token budget exceeds limit')
+    if max_input_tokens + DEEPSEEK_MAX_OUTPUT_TOKENS > DEEPSEEK_MAX_TOTAL_TOKENS:
+        raise ValidationError('Token budget exceeds DeepSeek limit')
     if base_tokens >= max_input_tokens:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail='Prompt and hashtags exceed token budget',
-        )
+        raise ValidationError('Prompt and hashtags exceed token budget')
 
-    messages = await fetch_channel_messages(
+    messages = await telegram.fetch_channel_messages(
         channel_ids,
         start_date=start_date,
         end_date=end_date,
@@ -140,32 +122,25 @@ async def analyze_hashtags(
         try:
             content = await deepseek.chat(
                 [
-                    {'role': 'system', 'content': SYSTEM_PROMPT},
+                    {'role': 'system', 'content': ANALYSIS_SYSTEM_PROMPT},
                     {'role': 'user', 'content': user_content},
                 ],
-                max_tokens=DEFAULT_MAX_OUTPUT_TOKENS,
-                temperature=0.1,
+                max_tokens=DEEPSEEK_MAX_OUTPUT_TOKENS,
+                temperature=DEEPSEEK_TEMPERATURE,
             )
+        except ExternalServiceError:
+            raise
         except Exception as exc:
             logger.warning('DeepSeek analysis failed: %s', exc)
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail='DeepSeek request failed',
-            ) from exc
+            raise ExternalServiceError('DeepSeek request failed') from exc
 
         try:
             payload_data = extract_json_payload(content)
         except Exception as exc:
             logger.warning('DeepSeek response parsing failed: %s', exc)
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail='DeepSeek response parsing failed',
-            ) from exc
+            raise ExternalServiceError('DeepSeek response parsing failed') from exc
         if not isinstance(payload_data, dict):
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail='DeepSeek response parsing failed',
-            )
+            raise ExternalServiceError('DeepSeek response parsing failed')
 
         items = payload_data.get('hashtags', [])
         if isinstance(items, list):
