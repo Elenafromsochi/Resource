@@ -15,8 +15,10 @@ from app.config import APP_NAME
 from app.config import CORS_ORIGINS
 from app.config import POSTGRES_URL
 from app.deepseek import DeepSeek
+from app.exception_handlers import register_exception_handlers
 from app.storage import Storage
 from app.storage import apply_migrations
+from app.telethon_service import TelegramService
 
 
 @asynccontextmanager
@@ -24,14 +26,25 @@ async def lifespan(app: FastAPI):
     storage = await Storage.create(POSTGRES_URL)
     await apply_migrations(storage.db)
     deepseek = DeepSeek()
+    telegram = TelegramService()
+    await telegram.start()
     app.state.storage = storage
     app.state.deepseek = deepseek
+    app.state.telegram = telegram
     yield
+    await telegram.close()
     await deepseek.close()
     await storage.close()
 
 
-app = FastAPI(title=APP_NAME, lifespan=lifespan)
+app = FastAPI(
+    title=APP_NAME,
+    lifespan=lifespan,
+    openapi_url=f'{API_PREFIX}/openapi.json',
+    docs_url=f'{API_PREFIX}/docs',
+    redoc_url=f'{API_PREFIX}/redoc',
+)
+register_exception_handlers(app)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,

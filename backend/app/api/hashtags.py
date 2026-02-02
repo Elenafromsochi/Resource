@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 from fastapi import Depends
-from fastapi import HTTPException
 from fastapi import Query
 from fastapi import status
 
@@ -10,6 +9,9 @@ from app.api.dependencies import get_storage
 from app.config import DEFAULT_PAGE_SIZE
 from app.config import HASHTAG_PREFIX
 from app.config import MAX_PAGE_SIZE
+from app.exceptions import ConflictError
+from app.exceptions import NotFoundError
+from app.exceptions import ValidationError
 from app.schemas import HashtagCreate
 from app.schemas import HashtagList
 from app.schemas import HashtagRead
@@ -21,19 +23,13 @@ router = APIRouter(prefix="/hashtags", tags=["hashtags"])
 def normalize_hashtag(raw: str) -> str:
     value = raw.strip()
     if not value:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Hashtag is required",
-        )
+        raise ValidationError('Hashtag is required')
 
     if not value.startswith(HASHTAG_PREFIX):
         value = f"{HASHTAG_PREFIX}{value}"
 
     if any(char.isspace() for char in value):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Hashtag must not contain spaces",
-        )
+        raise ValidationError('Hashtag must not contain spaces')
 
     value = value.lower()
     return value
@@ -57,25 +53,19 @@ async def create_hashtag(
     tag = normalize_hashtag(payload.tag)
     existing = await storage.hashtags.get_by_tag(tag)
     if existing:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Hashtag already exists",
-        )
+        raise ConflictError('Hashtag already exists')
 
     hashtag = await storage.hashtags.create(tag=tag)
     return hashtag
 
 
-@router.delete("/{hashtag_id}", status_code=status.HTTP_200_OK)
+@router.delete('/{hashtag_id}')
 async def delete_hashtag(
     hashtag_id: int,
     storage: Storage = Depends(get_storage),
 ):
     hashtag = await storage.hashtags.delete(hashtag_id)
     if hashtag is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Hashtag not found",
-        )
+        raise NotFoundError('Hashtag not found')
 
-    return {"status": "deleted", "id": hashtag_id}
+    return {'status': 'deleted', 'id': hashtag_id}

@@ -1,11 +1,15 @@
 from __future__ import annotations
 
-from typing import Any
 import logging
 
-import httpx
+from openai import AsyncOpenAI
+from openai import OpenAIError
 
 from app.config import DEEPSEEK_API_KEY
+from app.config import DEEPSEEK_BASE_URL
+from app.config import DEEPSEEK_MODEL
+from app.config import DEEPSEEK_TIMEOUT_SECONDS
+from app.exceptions import ExternalServiceError
 
 
 logger = logging.getLogger(__name__)
@@ -14,37 +18,36 @@ logger = logging.getLogger(__name__)
 class DeepSeek:
     def __init__(self, api_key: str = DEEPSEEK_API_KEY) -> None:
         self.api_key = api_key
-        self.client = httpx.AsyncClient(
-            base_url='https://api.deepseek.com/v1',
-            headers={
-                'Authorization': f'Bearer {self.api_key}',
-                'Content-Type': 'application/json',
-            },
-            timeout=httpx.Timeout(30.0),
+        self.client = AsyncOpenAI(
+            api_key=self.api_key,
+            base_url=DEEPSEEK_BASE_URL,
+            timeout=DEEPSEEK_TIMEOUT_SECONDS,
         )
 
     async def close(self) -> None:
-        await self.client.aclose()
+        await self.client.close()
 
     async def chat(
         self,
         messages: list[dict[str, str]],
         *,
         max_tokens: int,
-        temperature: float = 0.2,
-        model: str = 'deepseek-chat',
+        temperature: float,
+        model: str = DEEPSEEK_MODEL,
     ) -> str:
-        payload: dict[str, Any] = {
-            'model': model,
-            'messages': messages,
-            'temperature': temperature,
-            'max_tokens': max_tokens,
-        }
-        response = await self.client.post('/chat/completions', json=payload)
         try:
-            response.raise_for_status()
-        except httpx.HTTPError as exc:
+            response = await self.client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+        except OpenAIError as exc:
             logger.warning('DeepSeek request failed: %s', exc)
-            raise
-        data = response.json()
-        return data['choices'][0]['message']['content']
+            raise ExternalServiceError('DeepSeek request failed') from exc
+        if not response.choices:
+            raise ExternalServiceError('DeepSeek response parsing failed')
+        content = response.choices[0].message.content
+        if not content:
+            raise ExternalServiceError('DeepSeek response parsing failed')
+        return content
