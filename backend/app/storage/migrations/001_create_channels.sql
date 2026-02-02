@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS channels (
     id BIGINT PRIMARY KEY,
-    username VARCHAR(255) UNIQUE,
-    title VARCHAR(255),
+    username VARCHAR UNIQUE,
+    title VARCHAR,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
