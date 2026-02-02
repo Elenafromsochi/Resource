@@ -113,15 +113,20 @@ class TelegramService:
         try:
             async for dialog in self.client.iter_dialogs(limit=limit):
                 entity = dialog.entity
-                if not isinstance(entity, types.Channel) or entity.megagroup:
+                if not isinstance(
+                    entity,
+                    (types.Channel, types.ChannelForbidden, types.Chat, types.ChatForbidden),
+                ):
                     continue
                 channel_id = getattr(entity, 'id', None)
                 if channel_id is None:
                     continue
+                username = getattr(entity, 'username', None)
+                title = getattr(entity, 'title', None) or username or str(channel_id)
                 channels[int(channel_id)] = {
                     'id': int(channel_id),
-                    'title': entity.title or entity.username or str(channel_id),
-                    'username': getattr(entity, 'username', None),
+                    'title': title,
+                    'username': username,
                 }
         except (RPCError, Exception) as exc:
             logger.warning('Telethon dialog fetch failed: %s', exc)

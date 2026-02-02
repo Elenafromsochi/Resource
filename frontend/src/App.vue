@@ -596,7 +596,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, nextTick, onMounted, ref } from "vue";
 
 const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
@@ -743,6 +743,15 @@ const parseDateTimeInput = (value) => {
     return null;
   }
   return parsed;
+};
+
+const preserveScrollPosition = async (action) => {
+  const scrollY = window.scrollY;
+  await action();
+  await nextTick();
+  if (window.scrollY !== scrollY) {
+    window.scrollTo({ top: scrollY });
+  }
 };
 
 const toApiDateTime = (value) => {
@@ -1314,7 +1323,7 @@ const prevHashtags = async () => {
     return;
   }
   hashtagOffset.value = Math.max(0, hashtagOffset.value - hashtagLimit);
-  await fetchHashtags();
+  await preserveScrollPosition(fetchHashtags);
 };
 
 const nextHashtags = async () => {
@@ -1322,7 +1331,7 @@ const nextHashtags = async () => {
     return;
   }
   hashtagOffset.value += hashtagLimit;
-  await fetchHashtags();
+  await preserveScrollPosition(fetchHashtags);
 };
 
 onMounted(() => {
