@@ -91,8 +91,6 @@ class HashtagAnalysisRequest(BaseModel):
     start_date: datetime
     end_date: datetime
     channel_ids: list[int] | None = None
-    save_to_db: bool = False
-    max_input_tokens: int | None = None
     max_messages_per_channel: int | None = None
 
 
@@ -103,4 +101,3 @@ class HashtagAnalysisResponse(BaseModel):
     channels: list[int]
     total_messages: int
     hashtags: list[HashtagFrequency]
-    added_to_db: list[str] | None = None

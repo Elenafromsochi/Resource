@@ -2,12 +2,10 @@ from __future__ import annotations
 
 from fastapi import status
 
-from app.config import INTERNAL_ERROR_MESSAGE
-
 
 class AppError(Exception):
     status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-    detail = INTERNAL_ERROR_MESSAGE
+    detail = 'Internal server error'
 
     def __init__(self, detail: str | None = None) -> None:
         if detail is not None:

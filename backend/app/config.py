@@ -34,22 +34,5 @@ DEEPSEEK_MAX_INPUT_TOKENS = 120000
 DEEPSEEK_TEMPERATURE = 0.1
 DEEPSEEK_TIMEOUT_SECONDS = 30
 
-TOKEN_ESTIMATE_CHARS = 4
-
-ANALYSIS_SYSTEM_PROMPT = (
-    'Ты анализируешь сообщения из Telegram-каналов. '
-    'Следуй инструкции из блока ИНСТРУКЦИЯ. '
-    'Существующие хэштеги используй как подсказки, но можешь предлагать новые. '
-    'Считай хэштеги только по предоставленным сообщениям. '
-    'Ответ строго в JSON: {"hashtags":[{"tag":"#пример","count":3}]}'
-)
-ANALYSIS_PROMPT_TEMPLATE = (
-    'ИНСТРУКЦИЯ:\n{prompt}\n\n'
-    'СУЩЕСТВУЮЩИЕ_ХЭШТЕГИ:\n{hashtags}\n\n'
-    'СООБЩЕНИЯ:\n'
-)
-
-INTERNAL_ERROR_MESSAGE = 'Внутренняя ошибка сервера'
-
 MIGRATIONS_DIR = Path(__file__).resolve().parent / 'storage' / 'migrations'
 

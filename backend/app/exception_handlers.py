@@ -7,7 +7,6 @@ from fastapi import Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from app.config import INTERNAL_ERROR_MESSAGE
 from app.exceptions import AppError
 
 
@@ -35,5 +34,5 @@ def register_exception_handlers(app: FastAPI) -> None:
         logger.exception('Unhandled error: %s', exc)
         return JSONResponse(
             status_code=500,
-            content={'detail': INTERNAL_ERROR_MESSAGE},
+            content={'detail': 'Internal server error'},
         )
