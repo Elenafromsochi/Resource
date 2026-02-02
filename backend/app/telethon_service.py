@@ -35,7 +35,12 @@ async def resolve_channel(username: str) -> Optional[Dict[str, Any]]:
 
         title = getattr(entity, 'title', None)
         entity_username = getattr(entity, 'username', None) or username
-        return {'name': title or entity_username, 'username': entity_username}
+        entity_id = getattr(entity, 'id', None)
+        return {
+            'id': entity_id,
+            'title': title or entity_username,
+            'username': entity_username,
+        }
     except (RPCError, Exception) as exc:
         logger.warning('Telethon failed for %s: %s', username, exc)
         return None

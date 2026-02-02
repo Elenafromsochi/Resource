@@ -6,20 +6,47 @@ from pydantic import BaseModel
 from pydantic import ConfigDict
 from pydantic import Field
 
+from app.config import CHANNEL_TITLE_MAX_LENGTH
+from app.config import CHANNEL_USERNAME_MAX_LENGTH
+from app.config import HASHTAG_MAX_LENGTH
+
 
 class ChannelCreate(BaseModel):
-    username: str = Field(..., min_length=2, max_length=255)
-    name: str | None = Field(default=None, max_length=255)
+    username: str = Field(
+        ...,
+        min_length=2,
+        max_length=CHANNEL_USERNAME_MAX_LENGTH,
+    )
+    title: str | None = Field(default=None, max_length=CHANNEL_TITLE_MAX_LENGTH)
 
 
 class ChannelRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    username: str
-    name: str
-    created_at: datetime
+    username: str | None
+    title: str | None
+    created_at: datetime | None
 
 
 class ChannelList(BaseModel):
     items: list[ChannelRead]
+
+
+class HashtagCreate(BaseModel):
+    tag: str = Field(..., min_length=1, max_length=HASHTAG_MAX_LENGTH)
+
+
+class HashtagRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    tag: str
+    created_at: datetime | None
+
+
+class HashtagList(BaseModel):
+    items: list[HashtagRead]
+    total: int
+    limit: int
+    offset: int
