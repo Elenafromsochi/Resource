@@ -144,7 +144,7 @@ class TelegramService:
             return None
         fwd = message.fwd_from
         from_user_id = None
-        from_channel_id = fwd.channel_id
+        from_channel_id = getattr(fwd, 'channel_id', None)
         if fwd.from_id:
             peer_id = extract_peer_id(fwd.from_id)
             if isinstance(fwd.from_id, types.PeerUser):
