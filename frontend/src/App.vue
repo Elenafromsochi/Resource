@@ -77,10 +77,16 @@
                   </button>
                   <button
                     type="button"
-                    class="danger"
+                    class="icon-button danger"
                     @click="deletePrompt(prompt.id)"
+                    aria-label="Delete prompt"
+                    title="Delete"
                   >
-                    Delete
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path
+                        d="M9 3h6l1 2h5v2H3V5h5l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"
+                      />
+                    </svg>
                   </button>
                 </div>
                 <div v-if="promptEditingId === prompt.id" class="prompt-edit">
@@ -173,7 +179,7 @@
             <div class="selector-actions">
               <button
                 type="button"
-                class="secondary"
+                class="secondary compact"
                 :disabled="!analysisForm.limitToChannels"
                 @click="selectAllChannels"
               >
@@ -181,7 +187,7 @@
               </button>
               <button
                 type="button"
-                class="secondary"
+                class="secondary compact"
                 :disabled="!analysisForm.limitToChannels"
                 @click="clearSelectedChannels"
               >
@@ -189,18 +195,37 @@
               </button>
             </div>
           </div>
-          <div v-if="channels.length" class="channel-options">
-            <label v-for="channel in channels" :key="channel.id" class="option">
-              <input
-                type="checkbox"
-                :value="channel.id"
-                v-model="analysisForm.channelIds"
-                :disabled="!analysisForm.limitToChannels"
-              />
-              <span>{{ channel.title || channel.username || channel.id }}</span>
-              <span v-if="channel.username" class="meta">@{{ channel.username }}</span>
-              <span v-else class="meta">ID: {{ channel.id }}</span>
-            </label>
+          <div v-if="channels.length" class="table-block">
+            <table class="data-table compact-table">
+              <thead>
+                <tr>
+                  <th class="table-check">Select</th>
+                  <th>Channel</th>
+                  <th>Username / ID</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="channel in channels" :key="channel.id">
+                  <td class="table-check">
+                    <input
+                      type="checkbox"
+                      :value="channel.id"
+                      v-model="analysisForm.channelIds"
+                      :disabled="!analysisForm.limitToChannels"
+                    />
+                  </td>
+                  <td>
+                    <span class="cell-title">
+                      {{ channel.title || channel.username || channel.id }}
+                    </span>
+                  </td>
+                  <td class="cell-subtle">
+                    <span v-if="channel.username">@{{ channel.username }}</span>
+                    <span v-else>ID: {{ channel.id }}</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
           <p v-else class="empty">No channels available yet.</p>
           <p
@@ -236,15 +261,33 @@
               </strong>
             </div>
           </div>
-          <div v-if="analysisChannelLabels.length" class="tag-row">
-            <span class="tag" v-for="label in analysisChannelLabels" :key="label">
-              {{ label }}
-            </span>
+          <div v-if="analysisChannelRows.length" class="table-block">
+            <table class="data-table compact-table">
+              <thead>
+                <tr>
+                  <th>Channel</th>
+                  <th>Username / ID</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="channel in analysisChannelRows" :key="channel.id">
+                  <td>
+                    <span class="cell-title">
+                      {{ channel.title || (channel.username ? `@${channel.username}` : channel.id) }}
+                    </span>
+                  </td>
+                  <td class="cell-subtle">
+                    <span v-if="channel.username">@{{ channel.username }}</span>
+                    <span v-else>ID: {{ channel.id }}</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
           <div class="analysis-actions">
             <button
               type="button"
-              class="secondary"
+              class="secondary compact"
               :disabled="analysisAddLoading"
               @click="selectAllNewHashtags"
             >
@@ -252,7 +295,7 @@
             </button>
             <button
               type="button"
-              class="secondary"
+              class="secondary compact"
               :disabled="analysisAddLoading"
               @click="clearSelectedHashtags"
             >
@@ -260,6 +303,7 @@
             </button>
             <button
               type="button"
+              class="compact"
               :disabled="analysisAddLoading || !analysisSelectedCount"
               @click="addSelectedHashtags"
             >
@@ -269,27 +313,39 @@
           <div v-if="analysisAddError" class="error">{{ analysisAddError }}</div>
           <div v-if="analysisAddSummary" class="success">{{ analysisAddSummary }}</div>
 
-          <ul v-if="analysisHashtags.length" class="analysis-list">
-            <li v-for="item in analysisHashtags" :key="item.tag">
-              <label class="analysis-item">
-                <input v-if="item.in_db" type="checkbox" checked disabled />
-                <input
-                  v-else
-                  type="checkbox"
-                  :value="item.tag"
-                  v-model="analysisSelectedTags"
-                  :disabled="analysisAddLoading"
-                />
-                <div class="analysis-info">
+          <table v-if="analysisHashtags.length" class="data-table">
+            <thead>
+              <tr>
+                <th class="table-check">Select</th>
+                <th>Hashtag</th>
+                <th>Count</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in analysisHashtags" :key="item.tag">
+                <td class="table-check">
+                  <input v-if="item.in_db" type="checkbox" checked disabled />
+                  <input
+                    v-else
+                    type="checkbox"
+                    :value="item.tag"
+                    v-model="analysisSelectedTags"
+                    :disabled="analysisAddLoading"
+                  />
+                </td>
+                <td>
                   <strong>{{ item.tag }}</strong>
-                  <span class="meta">Count: {{ item.count }}</span>
-                </div>
-                <span class="badge" :class="item.in_db ? 'badge-in' : 'badge-new'">
-                  {{ item.in_db ? "In DB" : "New" }}
-                </span>
-              </label>
-            </li>
-          </ul>
+                </td>
+                <td class="cell-subtle">{{ item.count }}</td>
+                <td>
+                  <span class="badge" :class="item.in_db ? 'badge-in' : 'badge-new'">
+                    {{ item.in_db ? "In DB" : "New" }}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
           <p v-else class="empty">No hashtags found in this range.</p>
         </div>
       </section>
@@ -297,7 +353,23 @@
 
     <div class="grid">
       <section class="card">
-        <h2>Add a channel</h2>
+        <div class="card-header">
+          <div>
+            <h2>Add a channel</h2>
+          </div>
+          <div class="header-actions">
+            <button
+              type="button"
+              class="secondary compact"
+              :disabled="channelImportLoading"
+              @click="importDialogChannels"
+            >
+              {{ channelImportLoading ? "Importing..." : "Import dialogs" }}
+            </button>
+          </div>
+        </div>
+        <div v-if="channelImportError" class="error">{{ channelImportError }}</div>
+        <div v-if="channelImportSummary" class="success">{{ channelImportSummary }}</div>
         <form class="form" @submit.prevent="searchChannels">
           <label>
             Search in Telegram
@@ -313,24 +385,41 @@
         <div v-if="channelSearchError" class="error">{{ channelSearchError }}</div>
         <div v-if="channelSearchLoading" class="loading">Searching...</div>
         <div v-else>
-          <ul v-if="channelSearchResults.length" class="channel-list">
-            <li v-for="channel in channelSearchResults" :key="channel.id">
-              <div class="channel-info">
-                <strong>{{ channel.title || channel.username || channel.id }}</strong>
-                <span v-if="channel.username" class="meta">@{{ channel.username }}</span>
-                <span v-else class="meta">ID: {{ channel.id }}</span>
-                <span v-if="channel.description" class="meta">{{ channel.description }}</span>
-              </div>
-              <button
-                type="button"
-                class="secondary"
-                :disabled="!channel.username || channelLoading"
-                @click="addFromSearch(channel)"
-              >
-                Add
-              </button>
-            </li>
-          </ul>
+          <table v-if="channelSearchResults.length" class="data-table compact-table">
+            <thead>
+              <tr>
+                <th>Channel</th>
+                <th>Username / ID</th>
+                <th class="table-actions">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="channel in channelSearchResults" :key="channel.id">
+                <td>
+                  <div class="cell-title">
+                    {{ channel.title || channel.username || channel.id }}
+                  </div>
+                  <div v-if="channel.description" class="cell-subtle">
+                    {{ channel.description }}
+                  </div>
+                </td>
+                <td class="cell-subtle">
+                  <span v-if="channel.username">@{{ channel.username }}</span>
+                  <span v-else>ID: {{ channel.id }}</span>
+                </td>
+                <td class="table-actions">
+                  <button
+                    type="button"
+                    class="secondary compact"
+                    :disabled="!channel.username || channelLoading"
+                    @click="addFromSearch(channel)"
+                  >
+                    Add
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
           <p v-else-if="channelSearchHasRun && !channelSearchError" class="empty">
             No channels found.
           </p>
@@ -383,18 +472,47 @@
         <div v-if="channelError" class="error">{{ channelError }}</div>
         <div v-if="channelLoading" class="loading">Loading...</div>
         <div v-else>
-          <ul v-if="channels.length" class="channel-list">
-            <li v-for="channel in channels" :key="channel.id">
-              <div class="channel-info">
-                <strong>{{ channel.title || channel.username || channel.id }}</strong>
-                <span v-if="channel.username" class="meta">@{{ channel.username }}</span>
-                <span v-else class="meta">ID: {{ channel.id }}</span>
-              </div>
-              <button type="button" class="danger" @click="deleteChannel(channel.id)">
-                Delete
-              </button>
-            </li>
-          </ul>
+          <table v-if="channels.length" class="data-table">
+            <thead>
+              <tr>
+                <th>Channel</th>
+                <th>Username / ID</th>
+                <th>Created (ISO)</th>
+                <th class="table-actions">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="channel in channels" :key="channel.id">
+                <td>
+                  <span class="cell-title">
+                    {{ channel.title || channel.username || channel.id }}
+                  </span>
+                </td>
+                <td class="cell-subtle">
+                  <span v-if="channel.username">@{{ channel.username }}</span>
+                  <span v-else>ID: {{ channel.id }}</span>
+                </td>
+                <td class="cell-subtle">
+                  {{ channel.created_at ? formatTimestamp(channel.created_at) : "-" }}
+                </td>
+                <td class="table-actions">
+                  <button
+                    type="button"
+                    class="icon-button danger"
+                    @click="deleteChannel(channel.id)"
+                    aria-label="Delete channel"
+                    title="Delete"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path
+                        d="M9 3h6l1 2h5v2H3V5h5l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"
+                      />
+                    </svg>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
           <p v-else class="empty">No channels yet.</p>
         </div>
       </section>
@@ -413,16 +531,40 @@
         <div v-if="hashtagError" class="error">{{ hashtagError }}</div>
         <div v-if="hashtagLoading" class="loading">Loading...</div>
         <div v-else>
-          <ul v-if="hashtags.length" class="channel-list">
-            <li v-for="tag in hashtags" :key="tag.id">
-              <div class="channel-info">
-                <strong>{{ tag.tag }}</strong>
-              </div>
-              <button type="button" class="danger" @click="deleteHashtag(tag.id)">
-                Delete
-              </button>
-            </li>
-          </ul>
+          <table v-if="hashtags.length" class="data-table">
+            <thead>
+              <tr>
+                <th>Hashtag</th>
+                <th>Created (ISO)</th>
+                <th class="table-actions">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="tag in hashtags" :key="tag.id">
+                <td>
+                  <span class="cell-title">{{ tag.tag }}</span>
+                </td>
+                <td class="cell-subtle">
+                  {{ tag.created_at ? formatTimestamp(tag.created_at) : "-" }}
+                </td>
+                <td class="table-actions">
+                  <button
+                    type="button"
+                    class="icon-button danger"
+                    @click="deleteHashtag(tag.id)"
+                    aria-label="Delete hashtag"
+                    title="Delete"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path
+                        d="M9 3h6l1 2h5v2H3V5h5l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"
+                      />
+                    </svg>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
           <p v-else class="empty">No hashtags yet.</p>
           <div class="pagination">
             <button
@@ -469,6 +611,9 @@ const channelSearchResults = ref([]);
 const channelSearchLoading = ref(false);
 const channelSearchError = ref("");
 const channelSearchHasRun = ref(false);
+const channelImportLoading = ref(false);
+const channelImportError = ref("");
+const channelImportSummary = ref("");
 
 const hashtags = ref([]);
 const hashtagsTotal = ref(0);
@@ -530,17 +675,21 @@ const analysisPromptName = computed(() => {
   }
   return `Prompt #${analysisResult.value.prompt_id}`;
 });
-const analysisChannelLabels = computed(() => {
+const analysisChannelRows = computed(() => {
   if (!analysisResult.value) {
     return [];
   }
   const channelMap = new Map(channels.value.map((channel) => [channel.id, channel]));
   return analysisResult.value.channels.map((channelId) => {
     const channel = channelMap.get(channelId);
-    if (!channel) {
-      return String(channelId);
+    if (channel) {
+      return {
+        id: channel.id,
+        title: channel.title,
+        username: channel.username,
+      };
     }
-    return channel.title || (channel.username ? `@${channel.username}` : String(channelId));
+    return { id: channelId, title: null, username: null };
   });
 });
 
@@ -571,7 +720,7 @@ const formatTimestamp = (value) => {
   if (Number.isNaN(date.getTime())) {
     return String(value);
   }
-  return date.toISOString().replace("T", " ").replace(".000Z", " UTC");
+  return date.toISOString();
 };
 
 const ensurePromptSelection = () => {
@@ -683,6 +832,28 @@ const searchChannels = async () => {
   } finally {
     channelSearchLoading.value = false;
     channelSearchHasRun.value = true;
+  }
+};
+
+const importDialogChannels = async () => {
+  channelImportLoading.value = true;
+  channelImportError.value = "";
+  channelImportSummary.value = "";
+  try {
+    const response = await fetch(`${apiBase}/api/channels/import`, {
+      method: "POST",
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error(payload?.detail || "Unable to import channels.");
+    }
+    const data = await response.json();
+    channelImportSummary.value = `Imported ${data.created} of ${data.total_found}. Skipped ${data.skipped}.`;
+    await fetchChannels();
+  } catch (err) {
+    channelImportError.value = err.message || "Import error.";
+  } finally {
+    channelImportLoading.value = false;
   }
 };
 
@@ -1125,9 +1296,9 @@ onMounted(() => {
 .page {
   max-width: 1100px;
   margin: 0 auto;
-  padding: 20px 16px 32px;
+  padding: 16px 14px 24px;
   display: grid;
-  gap: 16px;
+  gap: 12px;
 }
 
 .hero {
@@ -1161,7 +1332,7 @@ onMounted(() => {
 
 .grid {
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
 .span-2 {
@@ -1170,8 +1341,8 @@ onMounted(() => {
 
 .card {
   background: #ffffff;
-  border-radius: 14px;
-  padding: 14px 16px;
+  border-radius: 12px;
+  padding: 12px 14px;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
 }
 
@@ -1182,8 +1353,8 @@ onMounted(() => {
 
 .form {
   display: grid;
-  gap: 10px;
-  margin-top: 10px;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 label {
@@ -1194,14 +1365,14 @@ label {
 }
 
 input:not([type="checkbox"]):not([type="radio"]) {
-  padding: 8px 10px;
+  padding: 7px 9px;
   border-radius: 8px;
   border: 1px solid #d1d5db;
 }
 
 select,
 textarea {
-  padding: 8px 10px;
+  padding: 7px 9px;
   border-radius: 8px;
   border: 1px solid #d1d5db;
   font: inherit;
@@ -1215,7 +1386,7 @@ button {
   border: none;
   background: #2563eb;
   color: #fff;
-  padding: 8px 12px;
+  padding: 7px 12px;
   border-radius: 8px;
   cursor: pointer;
   font-weight: 600;
@@ -1244,14 +1415,14 @@ button:disabled {
 
 .split {
   display: grid;
-  gap: 16px;
+  gap: 12px;
 }
 
 .panel {
   background: #f9fafb;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
-  padding: 12px;
+  padding: 10px;
 }
 
 .prompt-list {
@@ -1259,15 +1430,15 @@ button:disabled {
   padding: 0;
   margin: 0;
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .prompt-list li {
   border: 1px solid #e5e7eb;
   border-radius: 12px;
-  padding: 10px;
+  padding: 8px;
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .prompt-title {
@@ -1287,7 +1458,7 @@ button:disabled {
 .prompt-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .prompt-edit {
@@ -1315,10 +1486,10 @@ button:disabled {
 }
 
 .channel-selector {
-  margin-top: 12px;
+  margin-top: 10px;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
-  padding: 12px;
+  padding: 10px;
   background: #f9fafb;
 }
 
@@ -1331,7 +1502,7 @@ button:disabled {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .selector-actions {
@@ -1339,29 +1510,13 @@ button:disabled {
   gap: 8px;
 }
 
-.channel-options {
-  display: grid;
-  gap: 8px;
-}
-
-.option {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
-  background: #fff;
-}
-
 .analysis-result {
-  margin-top: 12px;
+  margin-top: 10px;
 }
 
 .analysis-summary {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
@@ -1373,52 +1528,12 @@ button:disabled {
   color: #6b7280;
 }
 
-.tag-row {
+.analysis-actions {
   margin-top: 8px;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
-
-.tag {
-  background: #e0f2fe;
-  color: #075985;
-  border-radius: 999px;
-  padding: 2px 8px;
-  font-size: 11px;
-}
-
-.analysis-actions {
-  margin-top: 10px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.analysis-list {
-  list-style: none;
-  margin: 10px 0 0;
-  padding: 0;
-  display: grid;
-  gap: 8px;
-}
-
-.analysis-item {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 10px;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 8px 10px;
-  background: #fff;
-}
-
-.analysis-info {
-  display: grid;
-  gap: 2px;
-}
-
 .badge {
   font-size: 11px;
   padding: 2px 6px;
@@ -1441,8 +1556,14 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   gap: 8px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .muted {
@@ -1451,27 +1572,85 @@ button:disabled {
   font-size: 12px;
 }
 
-.channel-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  gap: 8px;
+.compact {
+  padding: 6px 8px;
+  font-size: 12px;
 }
 
-.channel-list li {
-  display: flex;
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.data-table th,
+.data-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: top;
+}
+
+.data-table thead th {
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: #6b7280;
+  text-align: left;
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table tbody tr:hover {
+  background: #f9fafb;
+}
+
+.compact-table th,
+.compact-table td {
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+.table-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.table-check {
+  width: 1%;
+  text-align: center;
+}
+
+.cell-title {
+  font-weight: 600;
+  color: #111827;
+}
+
+.cell-subtle {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.table-block {
+  margin-top: 8px;
+}
+
+.icon-button {
+  padding: 4px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 8px 10px;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  gap: 12px;
+  justify-content: center;
+  line-height: 0;
 }
 
-.channel-info {
-  display: grid;
-  gap: 2px;
+.icon-button svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
 }
 
 .meta {
@@ -1513,7 +1692,7 @@ button:disabled {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .pagination-info {

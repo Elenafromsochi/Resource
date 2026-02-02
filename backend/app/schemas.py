@@ -37,6 +37,12 @@ class ChannelSearchList(BaseModel):
     items: list[ChannelSearchItem]
 
 
+class ChannelImportSummary(BaseModel):
+    total_found: int
+    created: int
+    skipped: int
+
+
 class HashtagCreate(BaseModel):
     tag: str = Field(...)
 
