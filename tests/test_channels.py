@@ -1,5 +1,11 @@
 import os
+import sys
+from pathlib import Path
 import unittest
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+BACKEND_DIR = ROOT_DIR / 'backend'
+sys.path.append(str(BACKEND_DIR))
 
 os.environ.setdefault('POSTGRES_URL', 'postgresql://user:pass@localhost:5432/test')
 os.environ.setdefault('MONGO_URL', 'mongodb://localhost:27017')
