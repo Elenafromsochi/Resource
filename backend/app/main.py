@@ -7,29 +7,30 @@ import re
 from fastapi import Depends
 from fastapi import FastAPI
 from fastapi import HTTPException
+from fastapi import Request
 from fastapi import status
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import select
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import API_PREFIX
 from app.config import APP_NAME
-from app.db import get_session
-from app.db import init_db
-from app.models import Channel
+from app.config import POSTGRES_URL
+from app.migration_runner import apply_migrations
 from app.mongo import log_channel_event
 from app.mongo import ping_mongo
 from app.schemas import ChannelCreate
 from app.schemas import ChannelList
 from app.schemas import ChannelRead
+from app.storage import Storage
 from app.telethon_service import resolve_channel
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_db()
+    storage = await Storage.create(POSTGRES_URL)
+    await apply_migrations(storage.db)
+    app.state.storage = storage
     yield
+    await storage.close()
 
 
 app = FastAPI(title=APP_NAME, root_path=API_PREFIX, lifespan=lifespan)
@@ -53,21 +54,22 @@ def normalize_username(raw: str) -> str:
     return value.strip()
 
 
+def get_storage(request: Request) -> Storage:
+    return request.app.state.storage
+
+
 async def get_channel_by_username(
-    session: AsyncSession,
+    storage: Storage,
     username: str,
-) -> Optional[Channel]:
-    result = await session.execute(
-        select(Channel).where(Channel.username == username),
-    )
-    return result.scalar_one_or_none()
+) -> Optional[dict]:
+    return await storage.channels.get_by_username(username)
 
 
 @app.get('/health')
-async def healthcheck(session: AsyncSession = Depends(get_session)):
+async def healthcheck(storage: Storage = Depends(get_storage)):
     db_ok = True
     try:
-        await session.execute(text('SELECT 1'))
+        await storage.db.execute('SELECT 1')
     except Exception:  # pragma: no cover - best effort
         db_ok = False
 
@@ -80,12 +82,9 @@ async def healthcheck(session: AsyncSession = Depends(get_session)):
     response_model=ChannelList,
 )
 async def list_channels(
-    session: AsyncSession = Depends(get_session),
+    storage: Storage = Depends(get_storage),
 ):
-    result = await session.execute(
-        select(Channel).order_by(Channel.created_at.desc()),
-    )
-    items = result.scalars().all()
+    items = await storage.channels.list()
     return ChannelList(items=items)
 
 
@@ -96,7 +95,7 @@ async def list_channels(
 )
 async def create_channel(
     payload: ChannelCreate,
-    session: AsyncSession = Depends(get_session),
+    storage: Storage = Depends(get_storage),
 ):
     username = normalize_username(payload.username)
     if not username:
@@ -109,7 +108,7 @@ async def create_channel(
     if resolved:
         username = resolved.get('username', username)
 
-    existing = await get_channel_by_username(session, username)
+    existing = await get_channel_by_username(storage, username)
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -118,14 +117,11 @@ async def create_channel(
 
     name = payload.name or (resolved.get('name') if resolved else None) or username
 
-    channel = Channel(username=username, name=name)
-    session.add(channel)
-    await session.commit()
-    await session.refresh(channel)
+    channel = await storage.channels.create(username=username, name=name)
 
     await log_channel_event(
         'created',
-        {'id': channel.id, 'username': channel.username, 'name': channel.name},
+        {'id': channel['id'], 'username': channel['username'], 'name': channel['name']},
     )
 
     return channel
@@ -137,21 +133,18 @@ async def create_channel(
 )
 async def delete_channel(
     channel_id: int,
-    session: AsyncSession = Depends(get_session),
+    storage: Storage = Depends(get_storage),
 ):
-    channel = await session.get(Channel, channel_id)
-    if not channel:
+    channel = await storage.channels.delete(channel_id)
+    if channel is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail='Channel not found',
         )
 
-    await session.delete(channel)
-    await session.commit()
-
     await log_channel_event(
         'deleted',
-        {'id': channel.id, 'username': channel.username, 'name': channel.name},
+        {'id': channel['id'], 'username': channel['username'], 'name': channel['name']},
     )
 
     return {'status': 'deleted', 'id': channel_id}
