@@ -53,6 +53,20 @@ class ChannelsRepository:
         )
         return [dict(row) for row in rows]
 
+    async def list_by_usernames(self, usernames: list[str]) -> list[dict[str, Any]]:
+        if not usernames:
+            return []
+        rows = await self.db.fetch(
+            """
+            SELECT id, username, title, created_at
+            FROM channels
+            WHERE username = ANY($1::VARCHAR[])
+            ORDER BY created_at DESC
+            """,
+            usernames,
+        )
+        return [dict(row) for row in rows]
+
     async def create(
         self,
         channel_id: int,

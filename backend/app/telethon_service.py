@@ -107,6 +107,26 @@ class TelegramService:
             logger.warning('Telethon channel search failed for %s: %s', query, exc)
             return []
 
+    async def list_dialog_channels(self, limit: int | None = None) -> list[dict[str, Any]]:
+        await self.start()
+        channels: dict[int, dict[str, Any]] = {}
+        try:
+            async for dialog in self.client.iter_dialogs(limit=limit):
+                entity = dialog.entity
+                if not isinstance(entity, types.Channel) or entity.megagroup:
+                    continue
+                channel_id = getattr(entity, 'id', None)
+                if channel_id is None:
+                    continue
+                channels[int(channel_id)] = {
+                    'id': int(channel_id),
+                    'title': entity.title or entity.username or str(channel_id),
+                    'username': getattr(entity, 'username', None),
+                }
+        except (RPCError, Exception) as exc:
+            logger.warning('Telethon dialog fetch failed: %s', exc)
+        return list(channels.values())
+
     async def build_reply_data(
         self,
         message: types.Message,

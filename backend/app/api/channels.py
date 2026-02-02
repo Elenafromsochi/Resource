@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from typing import Optional
 
@@ -14,6 +15,7 @@ from app.exceptions import NotFoundError
 from app.exceptions import ValidationError
 from app.schemas import ChannelCreate
 from app.schemas import ChannelList
+from app.schemas import ChannelImportSummary
 from app.schemas import ChannelRead
 from app.schemas import ChannelSearchList
 from app.storage import Storage
@@ -21,6 +23,7 @@ from app.storage.mongo import log_channel_event
 from app.telethon_service import TelegramService
 
 router = APIRouter(prefix='/channels', tags=['channels'])
+logger = logging.getLogger(__name__)
 
 
 def normalize_username(raw: str) -> str:
@@ -103,6 +106,71 @@ async def create_channel(
     )
 
     return channel
+
+
+@router.post('/import', response_model=ChannelImportSummary)
+async def import_channels_from_dialogs(
+    storage: Storage = Depends(get_storage),
+    telegram: TelegramService = Depends(get_telegram),
+):
+    dialogs = await telegram.list_dialog_channels()
+    if not dialogs:
+        return ChannelImportSummary(total_found=0, created=0, skipped=0)
+
+    deduped = {int(channel['id']): channel for channel in dialogs if channel.get('id') is not None}
+    dialog_channels = list(deduped.values())
+    if not dialog_channels:
+        return ChannelImportSummary(total_found=0, created=0, skipped=0)
+    channel_ids = list(deduped.keys())
+    existing_ids: set[int] = set()
+    if channel_ids:
+        existing = await storage.channels.list_by_ids(channel_ids)
+        existing_ids = {int(item['id']) for item in existing}
+
+    usernames = [channel['username'] for channel in dialog_channels if channel.get('username')]
+    existing_usernames: set[str] = set()
+    if usernames:
+        existing_by_username = await storage.channels.list_by_usernames(usernames)
+        existing_usernames = {item['username'] for item in existing_by_username if item.get('username')}
+
+    created_count = 0
+    skipped_count = 0
+
+    for channel in dialog_channels:
+        channel_id = int(channel['id'])
+        username = channel.get('username')
+        title = channel.get('title') or username or str(channel_id)
+
+        if channel_id in existing_ids or (username and username in existing_usernames):
+            skipped_count += 1
+            continue
+
+        try:
+            created = await storage.channels.create(
+                channel_id=channel_id,
+                username=username,
+                title=title,
+            )
+        except Exception as exc:
+            logger.warning('Failed to import channel %s: %s', channel_id, exc)
+            skipped_count += 1
+            continue
+
+        created_count += 1
+        await log_channel_event(
+            'imported',
+            {
+                'id': created['id'],
+                'username': created['username'],
+                'title': created['title'],
+            },
+        )
+
+    return ChannelImportSummary(
+        total_found=len(dialog_channels),
+        created=created_count,
+        skipped=skipped_count,
+    )
 
 
 @router.delete('/{channel_id}')
