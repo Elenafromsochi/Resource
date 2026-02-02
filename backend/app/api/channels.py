@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from typing import Optional
 import re
+from typing import Optional
 
 from fastapi import APIRouter
 from fastapi import Depends
@@ -9,21 +9,23 @@ from fastapi import HTTPException
 from fastapi import status
 
 from app.api.dependencies import get_storage
-from app.storage.mongo import log_channel_event
 from app.schemas import ChannelCreate
 from app.schemas import ChannelList
 from app.schemas import ChannelRead
+from app.schemas import ChannelSearchList
 from app.storage import Storage
+from app.storage.mongo import log_channel_event
 from app.telethon_service import resolve_channel
+from app.telethon_service import search_channels
 
-router = APIRouter(prefix="/channels", tags=["channels"])
+router = APIRouter(prefix='/channels', tags=['channels'])
 
 
 def normalize_username(raw: str) -> str:
     value = raw.strip()
-    value = re.sub(r"^(https?://)?t\.me/", "", value, flags=re.IGNORECASE)
-    value = re.sub(r"^(https?://)?telegram\.me/", "", value, flags=re.IGNORECASE)
-    value = value.lstrip("@")
+    value = re.sub(r'^(https?://)?t\.me/', '', value, flags=re.IGNORECASE)
+    value = re.sub(r'^(https?://)?telegram\.me/', '', value, flags=re.IGNORECASE)
+    value = value.lstrip('@')
     return value.strip()
 
 
@@ -34,7 +36,7 @@ async def get_channel_by_username(
     return await storage.channels.get_by_username(username)
 
 
-@router.get("", response_model=ChannelList)
+@router.get('', response_model=ChannelList)
 async def list_channels(
     storage: Storage = Depends(get_storage),
 ):
@@ -42,7 +44,23 @@ async def list_channels(
     return ChannelList(items=items)
 
 
-@router.post("", response_model=ChannelRead, status_code=status.HTTP_201_CREATED)
+@router.get('/search', response_model=ChannelSearchList)
+async def search_channels_endpoint(
+    q: str,
+    limit: int = 10,
+):
+    query = q.strip()
+    if not query:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail='Search query is required',
+        )
+
+    items = await search_channels(query, limit=limit)
+    return ChannelSearchList(items=items)
+
+
+@router.post('', response_model=ChannelRead, status_code=status.HTTP_201_CREATED)
 async def create_channel(
     payload: ChannelCreate,
     storage: Storage = Depends(get_storage),
@@ -51,25 +69,25 @@ async def create_channel(
     if not username:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Channel username is required",
+            detail='Channel username is required',
         )
 
     resolved = await resolve_channel(username)
-    channel_id = resolved.get("id") if resolved else None
-    if channel_id is None:
+    if not resolved or resolved.get('id') is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Unable to resolve Telegram channel id",
+            detail='Unable to resolve Telegram channel id',
         )
 
-    username = resolved.get("username", username) if resolved else username
-    title = payload.title or (resolved.get("title") if resolved else None) or username or str(channel_id)
+    channel_id = resolved['id']
+    username = resolved.get('username', username)
+    title = resolved.get('title') or username or str(channel_id)
 
     existing = await storage.channels.get_by_id(int(channel_id))
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Channel already exists",
+            detail='Channel already exists',
         )
 
     if username:
@@ -77,7 +95,7 @@ async def create_channel(
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Channel already exists",
+                detail='Channel already exists',
             )
 
     channel = await storage.channels.create(
@@ -87,18 +105,18 @@ async def create_channel(
     )
 
     await log_channel_event(
-        "created",
+        'created',
         {
-            "id": channel["id"],
-            "username": channel["username"],
-            "title": channel["title"],
+            'id': channel['id'],
+            'username': channel['username'],
+            'title': channel['title'],
         },
     )
 
     return channel
 
 
-@router.delete("/{channel_id}", status_code=status.HTTP_200_OK)
+@router.delete('/{channel_id}', status_code=status.HTTP_200_OK)
 async def delete_channel(
     channel_id: int,
     storage: Storage = Depends(get_storage),
@@ -107,16 +125,16 @@ async def delete_channel(
     if channel is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Channel not found",
+            detail='Channel not found',
         )
 
     await log_channel_event(
-        "deleted",
+        'deleted',
         {
-            "id": channel["id"],
-            "username": channel["username"],
-            "title": channel["title"],
+            'id': channel['id'],
+            'username': channel['username'],
+            'title': channel['title'],
         },
     )
 
-    return {"status": "deleted", "id": channel_id}
+    return {'status': 'deleted', 'id': channel_id}
