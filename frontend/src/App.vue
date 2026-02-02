@@ -5,81 +5,169 @@
         <p class="eyebrow">Telegram Channel Manager</p>
         <h1>Channel management</h1>
         <p class="subtitle">
-          Add, delete, and review channels from one place.
+          Add, delete, and review channels and hashtags in one place.
         </p>
       </div>
       <div class="api-pill">API: {{ apiBase }}</div>
     </header>
 
-    <section class="card">
-      <h2>Add a channel</h2>
-      <form class="form" @submit.prevent="createChannel">
-        <label>
-          Username or link
-          <input
-            v-model="form.username"
-            placeholder="@channel or https://t.me/channel"
-            required
-          />
-        </label>
-        <label>
-          Name (optional)
-          <input v-model="form.name" placeholder="Channel name" />
-        </label>
-        <button type="submit" :disabled="loading">Add</button>
-      </form>
-      <p class="hint">
-        If TELEGRAM_API_ID and TELEGRAM_API_HASH are configured, the server
-        will resolve details via Telethon.
-      </p>
-    </section>
+    <div class="grid">
+      <section class="card">
+        <h2>Add a channel</h2>
+        <form class="form" @submit.prevent="createChannel">
+          <label>
+            Username or link
+            <input
+              v-model="channelForm.username"
+              placeholder="@channel or https://t.me/channel"
+              required
+            />
+          </label>
+          <label>
+            Title (optional)
+            <input v-model="channelForm.title" placeholder="Channel title" />
+          </label>
+          <button type="submit" :disabled="channelLoading">Add</button>
+        </form>
+        <p class="hint">
+          If TELEGRAM_API_ID and TELEGRAM_API_HASH are configured, the server
+          will resolve details via Telethon.
+        </p>
+      </section>
 
-    <section class="card">
-      <div class="card-header">
-        <div>
-          <h2>Channel list</h2>
-          <p class="muted">Total: {{ channels.length }}</p>
+      <section class="card">
+        <h2>Add a hashtag</h2>
+        <form class="form" @submit.prevent="createHashtag">
+          <label>
+            Hashtag
+            <input v-model="hashtagForm.tag" placeholder="#news" required />
+          </label>
+          <button type="submit" :disabled="hashtagLoading">Add</button>
+        </form>
+        <p class="hint">
+          Hashtags must start with #, use lowercase, and contain no spaces.
+        </p>
+      </section>
+    </div>
+
+    <div class="grid">
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <h2>Channel list</h2>
+            <p class="muted">Total: {{ channels.length }}</p>
+          </div>
+          <button type="button" class="secondary" @click="fetchChannels">
+            Refresh
+          </button>
         </div>
-        <button type="button" class="secondary" @click="fetchChannels">
-          Refresh
-        </button>
-      </div>
 
-      <div v-if="error" class="error">{{ error }}</div>
-      <div v-if="loading" class="loading">Loading...</div>
-      <div v-else>
-        <ul v-if="channels.length" class="channel-list">
-          <li v-for="channel in channels" :key="channel.id">
-            <div class="channel-info">
-              <strong>{{ channel.name }}</strong>
-              <span class="meta">@{{ channel.username }}</span>
-            </div>
-            <button type="button" class="danger" @click="deleteChannel(channel.id)">
-              Delete
+        <div v-if="channelError" class="error">{{ channelError }}</div>
+        <div v-if="channelLoading" class="loading">Loading...</div>
+        <div v-else>
+          <ul v-if="channels.length" class="channel-list">
+            <li v-for="channel in channels" :key="channel.id">
+              <div class="channel-info">
+                <strong>{{ channel.title || channel.username || channel.id }}</strong>
+                <span v-if="channel.username" class="meta">@{{ channel.username }}</span>
+                <span v-else class="meta">ID: {{ channel.id }}</span>
+              </div>
+              <button type="button" class="danger" @click="deleteChannel(channel.id)">
+                Delete
+              </button>
+            </li>
+          </ul>
+          <p v-else class="empty">No channels yet.</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <h2>Hashtags</h2>
+            <p class="muted">Total: {{ hashtagsTotal }}</p>
+          </div>
+          <button type="button" class="secondary" @click="fetchHashtags">
+            Refresh
+          </button>
+        </div>
+
+        <div v-if="hashtagError" class="error">{{ hashtagError }}</div>
+        <div v-if="hashtagLoading" class="loading">Loading...</div>
+        <div v-else>
+          <ul v-if="hashtags.length" class="channel-list">
+            <li v-for="tag in hashtags" :key="tag.id">
+              <div class="channel-info">
+                <strong>{{ tag.tag }}</strong>
+              </div>
+              <button type="button" class="danger" @click="deleteHashtag(tag.id)">
+                Delete
+              </button>
+            </li>
+          </ul>
+          <p v-else class="empty">No hashtags yet.</p>
+          <div class="pagination">
+            <button
+              type="button"
+              class="secondary"
+              :disabled="!hasPreviousHashtagPage"
+              @click="prevHashtags"
+            >
+              Prev
             </button>
-          </li>
-        </ul>
-        <p v-else class="empty">No channels yet.</p>
-      </div>
-    </section>
+            <span class="pagination-info">
+              Page {{ hashtagPage }} of {{ hashtagTotalPages }}
+            </span>
+            <button
+              type="button"
+              class="secondary"
+              :disabled="!hasNextHashtagPage"
+              @click="nextHashtags"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 
 const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
 const channels = ref([]);
-const loading = ref(false);
-const error = ref("");
-const form = ref({
+const channelLoading = ref(false);
+const channelError = ref("");
+const channelForm = ref({
   username: "",
-  name: "",
+  title: "",
 });
 
+const hashtags = ref([]);
+const hashtagsTotal = ref(0);
+const hashtagLoading = ref(false);
+const hashtagError = ref("");
+const hashtagForm = ref({
+  tag: "",
+});
+const hashtagLimit = 12;
+const hashtagOffset = ref(0);
+
+const hashtagPage = computed(() => Math.floor(hashtagOffset.value / hashtagLimit) + 1);
+const hashtagTotalPages = computed(() =>
+  Math.max(1, Math.ceil(hashtagsTotal.value / hashtagLimit))
+);
+const hasPreviousHashtagPage = computed(() => hashtagOffset.value > 0);
+const hasNextHashtagPage = computed(
+  () => hashtagOffset.value + hashtagLimit < hashtagsTotal.value
+);
+
 const fetchChannels = async () => {
-  loading.value = true;
-  error.value = "";
+  channelLoading.value = true;
+  channelError.value = "";
   try {
     const response = await fetch(`${apiBase}/api/channels`);
     if (!response.ok) {
@@ -88,19 +176,19 @@ const fetchChannels = async () => {
     const data = await response.json();
     channels.value = data.items || [];
   } catch (err) {
-    error.value = err.message || "Load error.";
+    channelError.value = err.message || "Load error.";
   } finally {
-    loading.value = false;
+    channelLoading.value = false;
   }
 };
 
 const createChannel = async () => {
-  if (!form.value.username.trim()) {
-    error.value = "Channel username is required.";
+  if (!channelForm.value.username.trim()) {
+    channelError.value = "Channel username is required.";
     return;
   }
-  loading.value = true;
-  error.value = "";
+  channelLoading.value = true;
+  channelError.value = "";
   try {
     const response = await fetch(`${apiBase}/api/channels`, {
       method: "POST",
@@ -108,8 +196,8 @@ const createChannel = async () => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        username: form.value.username,
-        name: form.value.name || null,
+        username: channelForm.value.username,
+        title: channelForm.value.title || null,
       }),
     });
 
@@ -118,12 +206,12 @@ const createChannel = async () => {
       throw new Error(payload?.detail || "Unable to add channel.");
     }
 
-    form.value = { username: "", name: "" };
+    channelForm.value = { username: "", title: "" };
     await fetchChannels();
   } catch (err) {
-    error.value = err.message || "Create error.";
+    channelError.value = err.message || "Create error.";
   } finally {
-    loading.value = false;
+    channelLoading.value = false;
   }
 };
 
@@ -132,8 +220,8 @@ const deleteChannel = async (id) => {
   if (!confirmed) {
     return;
   }
-  loading.value = true;
-  error.value = "";
+  channelLoading.value = true;
+  channelError.value = "";
   try {
     const response = await fetch(`${apiBase}/api/channels/${id}`, {
       method: "DELETE",
@@ -144,40 +232,137 @@ const deleteChannel = async (id) => {
     }
     await fetchChannels();
   } catch (err) {
-    error.value = err.message || "Delete error.";
+    channelError.value = err.message || "Delete error.";
   } finally {
-    loading.value = false;
+    channelLoading.value = false;
   }
 };
 
-onMounted(fetchChannels);
+const fetchHashtags = async () => {
+  hashtagLoading.value = true;
+  hashtagError.value = "";
+  try {
+    const response = await fetch(
+      `${apiBase}/api/hashtags?limit=${hashtagLimit}&offset=${hashtagOffset.value}`
+    );
+    if (!response.ok) {
+      throw new Error("Unable to load hashtags.");
+    }
+    const data = await response.json();
+    hashtags.value = data.items || [];
+    hashtagsTotal.value = data.total || 0;
+  } catch (err) {
+    hashtagError.value = err.message || "Load error.";
+  } finally {
+    hashtagLoading.value = false;
+  }
+};
+
+const createHashtag = async () => {
+  if (!hashtagForm.value.tag.trim()) {
+    hashtagError.value = "Hashtag is required.";
+    return;
+  }
+  hashtagLoading.value = true;
+  hashtagError.value = "";
+  try {
+    const response = await fetch(`${apiBase}/api/hashtags`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        tag: hashtagForm.value.tag,
+      }),
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error(payload?.detail || "Unable to add hashtag.");
+    }
+
+    hashtagForm.value = { tag: "" };
+    hashtagOffset.value = 0;
+    await fetchHashtags();
+  } catch (err) {
+    hashtagError.value = err.message || "Create error.";
+  } finally {
+    hashtagLoading.value = false;
+  }
+};
+
+const deleteHashtag = async (id) => {
+  const confirmed = window.confirm("Delete this hashtag?");
+  if (!confirmed) {
+    return;
+  }
+  hashtagLoading.value = true;
+  hashtagError.value = "";
+  try {
+    const response = await fetch(`${apiBase}/api/hashtags/${id}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error(payload?.detail || "Unable to delete hashtag.");
+    }
+    await fetchHashtags();
+  } catch (err) {
+    hashtagError.value = err.message || "Delete error.";
+  } finally {
+    hashtagLoading.value = false;
+  }
+};
+
+const prevHashtags = async () => {
+  if (!hasPreviousHashtagPage.value) {
+    return;
+  }
+  hashtagOffset.value = Math.max(0, hashtagOffset.value - hashtagLimit);
+  await fetchHashtags();
+};
+
+const nextHashtags = async () => {
+  if (!hasNextHashtagPage.value) {
+    return;
+  }
+  hashtagOffset.value += hashtagLimit;
+  await fetchHashtags();
+};
+
+onMounted(() => {
+  fetchChannels();
+  fetchHashtags();
+});
 </script>
 
 <style scoped>
 .page {
-  max-width: 960px;
+  max-width: 1100px;
   margin: 0 auto;
-  padding: 32px 24px 60px;
+  padding: 20px 16px 32px;
+  display: grid;
+  gap: 16px;
 }
 
 .hero {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-bottom: 24px;
+  gap: 8px;
 }
 
 .eyebrow {
   text-transform: uppercase;
-  font-size: 12px;
+  font-size: 11px;
   letter-spacing: 0.12em;
   color: #6b7280;
-  margin: 0 0 8px;
+  margin: 0 0 4px;
 }
 
 .subtitle {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   color: #4b5563;
+  font-size: 14px;
 }
 
 .api-pill {
@@ -185,34 +370,43 @@ onMounted(fetchChannels);
   background: #111827;
   color: #f9fafb;
   border-radius: 999px;
-  padding: 6px 14px;
-  font-size: 12px;
+  padding: 4px 10px;
+  font-size: 11px;
+}
+
+.grid {
+  display: grid;
+  gap: 12px;
 }
 
 .card {
   background: #ffffff;
-  border-radius: 16px;
-  padding: 20px 24px;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
-  margin-bottom: 20px;
+  border-radius: 14px;
+  padding: 14px 16px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+}
+
+.card h2 {
+  margin: 0;
+  font-size: 16px;
 }
 
 .form {
   display: grid;
-  gap: 16px;
-  margin-top: 12px;
+  gap: 10px;
+  margin-top: 10px;
 }
 
 label {
   display: grid;
-  gap: 8px;
-  font-size: 14px;
+  gap: 6px;
+  font-size: 13px;
   color: #374151;
 }
 
 input {
-  padding: 10px 12px;
-  border-radius: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
   border: 1px solid #d1d5db;
 }
 
@@ -220,10 +414,11 @@ button {
   border: none;
   background: #2563eb;
   color: #fff;
-  padding: 10px 16px;
-  border-radius: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
   cursor: pointer;
   font-weight: 600;
+  font-size: 13px;
 }
 
 button:disabled {
@@ -241,22 +436,23 @@ button:disabled {
 }
 
 .hint {
-  margin-top: 12px;
+  margin-top: 8px;
   color: #6b7280;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 10px;
+  gap: 8px;
 }
 
 .muted {
-  margin: 6px 0 0;
+  margin: 4px 0 0;
   color: #6b7280;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .channel-list {
@@ -264,50 +460,71 @@ button:disabled {
   padding: 0;
   margin: 0;
   display: grid;
-  gap: 12px;
+  gap: 8px;
 }
 
 .channel-list li {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: 8px 10px;
   border: 1px solid #e5e7eb;
-  border-radius: 12px;
+  border-radius: 10px;
+  gap: 12px;
 }
 
 .channel-info {
   display: grid;
-  gap: 4px;
+  gap: 2px;
 }
 
 .meta {
-  font-size: 13px;
+  font-size: 12px;
   color: #6b7280;
 }
 
 .error {
   background: #fee2e2;
   color: #991b1b;
-  padding: 10px 12px;
-  border-radius: 10px;
-  margin-bottom: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  font-size: 12px;
 }
 
 .loading {
   color: #6b7280;
+  font-size: 12px;
 }
 
 .empty {
   color: #6b7280;
   margin: 0;
+  font-size: 12px;
 }
 
-@media (min-width: 768px) {
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.pagination-info {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+@media (min-width: 900px) {
   .hero {
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
+  }
+
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>

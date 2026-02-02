@@ -22,7 +22,7 @@ services:
     build:
       context: ./backend
     environment:
-      POSTGRES_URL: postgresql+asyncpg://user:password@postgres:5432/db
+      POSTGRES_URL: postgresql://user:password@postgres:5432/db
       MONGO_URL: mongodb://mongo:27017
       MONGO_DB: app
       TELEGRAM_API_ID: ${TELEGRAM_API_ID}
