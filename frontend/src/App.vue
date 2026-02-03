@@ -356,6 +356,146 @@
     </div>
 
     <div class="grid">
+      <section class="card span-2">
+        <div class="card-header">
+          <div>
+            <h2>Participants</h2>
+            <p class="muted">Total: {{ participantsTotal }}</p>
+          </div>
+          <button type="button" class="secondary" @click="fetchParticipants">
+            Refresh
+          </button>
+        </div>
+
+        <div v-if="participantError" class="error">{{ participantError }}</div>
+        <div v-if="participantLoading" class="loading">Loading...</div>
+        <div v-else>
+          <table v-if="participants.length" class="data-table">
+            <thead>
+              <tr>
+                <th>Participant</th>
+                <th>Username / ID</th>
+                <th>Bio</th>
+                <th>Last seen</th>
+                <th class="table-actions">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template v-for="participant in participants" :key="participant.user_id">
+                <tr>
+                  <td>
+                    <div class="avatar-stack">
+                      <img
+                        v-if="participant.photo_url"
+                        :src="participant.photo_url"
+                        :alt="participant.display_name || participant.username || participant.user_id"
+                        class="avatar"
+                      />
+                      <div v-else class="avatar-placeholder">
+                        {{ getParticipantInitials(participant) }}
+                      </div>
+                      <div>
+                        <div class="cell-title">
+                          {{ participant.display_name || participant.username || participant.user_id }}
+                        </div>
+                        <div class="cell-subtle" v-if="participant.is_bot">Bot</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="cell-subtle">
+                    <span v-if="participant.username">@{{ participant.username }}</span>
+                    <span v-else>ID: {{ participant.user_id }}</span>
+                  </td>
+                  <td class="cell-subtle">{{ previewBio(participant.about) }}</td>
+                  <td class="cell-subtle">
+                    {{ formatTimestamp(participant.last_seen_at) || "Unknown" }}
+                  </td>
+                  <td class="table-actions">
+                    <button
+                      type="button"
+                      class="secondary compact"
+                      @click="toggleParticipantDetails(participant.user_id)"
+                    >
+                      {{ expandedParticipantId === participant.user_id ? "Hide" : "Details" }}
+                    </button>
+                  </td>
+                </tr>
+                <tr v-if="expandedParticipantId === participant.user_id">
+                  <td colspan="5">
+                    <div class="detail-panel">
+                      <div class="detail-grid">
+                        <div>
+                          <p class="label">Name</p>
+                          <strong>
+                            {{ participant.display_name || participant.username || participant.user_id }}
+                          </strong>
+                        </div>
+                        <div>
+                          <p class="label">Username</p>
+                          <span v-if="participant.username">@{{ participant.username }}</span>
+                          <span v-else class="cell-subtle">No username</span>
+                        </div>
+                        <div>
+                          <p class="label">User ID</p>
+                          <span>{{ participant.user_id }}</span>
+                        </div>
+                        <div>
+                          <p class="label">Last seen</p>
+                          <span>{{ formatTimestamp(participant.last_seen_at) || "Unknown" }}</span>
+                        </div>
+                        <div>
+                          <p class="label">Profile updated</p>
+                          <span>
+                            {{ formatTimestamp(participant.profile_updated_at) || "Unknown" }}
+                          </span>
+                        </div>
+                      </div>
+                      <div class="detail-block">
+                        <p class="label">Bio</p>
+                        <p class="detail-text">{{ participant.about || "No bio" }}</p>
+                      </div>
+                      <div class="detail-tags">
+                        <span v-if="participant.is_verified" class="badge badge-in">Verified</span>
+                        <span v-if="participant.is_bot" class="badge badge-neutral">Bot</span>
+                        <span v-if="participant.is_restricted" class="badge badge-warn">
+                          Restricted
+                        </span>
+                        <span v-if="participant.is_scam" class="badge badge-warn">Scam</span>
+                        <span v-if="participant.is_fake" class="badge badge-warn">Fake</span>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+          <p v-else class="empty">No participants found yet.</p>
+          <div class="pagination">
+            <button
+              type="button"
+              class="secondary"
+              :disabled="!hasPreviousParticipantPage"
+              @click="prevParticipants"
+            >
+              Prev
+            </button>
+            <span class="pagination-info">
+              Page {{ participantPage }} of {{ participantTotalPages }}
+            </span>
+            <button
+              type="button"
+              class="secondary"
+              :disabled="!hasNextParticipantPage"
+              @click="nextParticipants"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="grid">
       <section class="card">
         <div class="card-header">
           <div>
@@ -621,6 +761,14 @@ const hashtagForm = ref({
 const hashtagLimit = 12;
 const hashtagOffset = ref(0);
 
+const participants = ref([]);
+const participantsTotal = ref(0);
+const participantLoading = ref(false);
+const participantError = ref("");
+const participantLimit = 10;
+const participantOffset = ref(0);
+const expandedParticipantId = ref(null);
+
 const prompts = ref([]);
 const promptLoading = ref(false);
 const promptError = ref("");
@@ -657,6 +805,17 @@ const hashtagTotalPages = computed(() =>
 const hasPreviousHashtagPage = computed(() => hashtagOffset.value > 0);
 const hasNextHashtagPage = computed(
   () => hashtagOffset.value + hashtagLimit < hashtagsTotal.value
+);
+
+const participantPage = computed(
+  () => Math.floor(participantOffset.value / participantLimit) + 1
+);
+const participantTotalPages = computed(() =>
+  Math.max(1, Math.ceil(participantsTotal.value / participantLimit))
+);
+const hasPreviousParticipantPage = computed(() => participantOffset.value > 0);
+const hasNextParticipantPage = computed(
+  () => participantOffset.value + participantLimit < participantsTotal.value
 );
 
 const analysisHashtags = computed(() => analysisResult.value?.hashtags || []);
@@ -824,6 +983,37 @@ const formatTimestamp = (value) => {
     return value ? String(value) : "";
   }
   return formatRussianDateTime(date);
+};
+
+const previewBio = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return "No bio";
+  }
+  if (raw.length > 100) {
+    return `${raw.slice(0, 100)}...`;
+  }
+  return raw;
+};
+
+const getParticipantInitials = (participant) => {
+  const name = String(
+    participant?.display_name || participant?.username || participant?.user_id || ""
+  ).replace(/^@/, "");
+  const cleaned = name.trim();
+  if (!cleaned) {
+    return "NA";
+  }
+  const parts = cleaned.split(/\s+/);
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+  return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+};
+
+const toggleParticipantDetails = (userId) => {
+  expandedParticipantId.value =
+    expandedParticipantId.value === userId ? null : userId;
 };
 
 const ensurePromptSelection = () => {
@@ -1196,6 +1386,7 @@ const runAnalysis = async () => {
     const data = await response.json();
     analysisResult.value = data;
     analysisSelectedTags.value = [];
+    await fetchParticipants();
 
   } catch (err) {
     analysisError.value = err.message || "Analysis error.";
@@ -1315,6 +1506,26 @@ const fetchHashtags = async () => {
   }
 };
 
+const fetchParticipants = async () => {
+  participantLoading.value = true;
+  participantError.value = "";
+  try {
+    const response = await fetch(
+      `${apiBase}/api/participants?limit=${participantLimit}&offset=${participantOffset.value}`
+    );
+    if (!response.ok) {
+      throw new Error("Unable to load participants.");
+    }
+    const data = await response.json();
+    participants.value = data.items || [];
+    participantsTotal.value = data.total || 0;
+  } catch (err) {
+    participantError.value = err.message || "Load error.";
+  } finally {
+    participantLoading.value = false;
+  }
+};
+
 const createHashtag = async () => {
   if (!hashtagForm.value.tag.trim()) {
     hashtagError.value = "Hashtag is required.";
@@ -1387,9 +1598,26 @@ const nextHashtags = async () => {
   await preserveScrollPosition(fetchHashtags);
 };
 
+const prevParticipants = async () => {
+  if (!hasPreviousParticipantPage.value) {
+    return;
+  }
+  participantOffset.value = Math.max(0, participantOffset.value - participantLimit);
+  await preserveScrollPosition(fetchParticipants);
+};
+
+const nextParticipants = async () => {
+  if (!hasNextParticipantPage.value) {
+    return;
+  }
+  participantOffset.value += participantLimit;
+  await preserveScrollPosition(fetchParticipants);
+};
+
 onMounted(() => {
   fetchChannels();
   fetchHashtags();
+  fetchParticipants();
   fetchPrompts();
   initDateRange();
 });
@@ -1742,6 +1970,77 @@ button:disabled {
 
 .table-block {
   margin-top: 8px;
+}
+
+.avatar-stack {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  object-fit: cover;
+  background: #e5e7eb;
+}
+
+.avatar-placeholder {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  color: #374151;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.detail-panel {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f9fafb;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.detail-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.detail-block {
+  display: grid;
+  gap: 6px;
+}
+
+.detail-text {
+  margin: 0;
+  color: #4b5563;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.badge-neutral {
+  background: #e5e7eb;
+  color: #111827;
+}
+
+.badge-warn {
+  background: #fee2e2;
+  color: #991b1b;
 }
 
 .icon-button {
