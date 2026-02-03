@@ -18,6 +18,7 @@ color_handler.setFormatter(ColoredFormatter(
 ))
 logging.basicConfig(level=logging.DEBUG, handlers=[color_handler])
 logging.getLogger('telethon').setLevel(logging.INFO)
+logging.getLogger('pymongo').setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
 
 uvicorn.run('app.main:app', host='0.0.0.0', port=8000)
