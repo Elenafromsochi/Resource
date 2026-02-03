@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
-from datetime import timezone
 
 from fastapi import APIRouter
 from fastapi import Depends
@@ -39,7 +37,6 @@ async def get_participant(
     storage: Storage = Depends(get_storage),
     telegram: TelegramService = Depends(get_telegram),
 ):
-    now = datetime.now(timezone.utc)
     try:
         profiles = await telegram.fetch_user_profiles([user_id])
     except Exception as exc:
@@ -47,10 +44,7 @@ async def get_participant(
         profiles = []
 
     if profiles:
-        profile = profiles[0]
-        profile['profile_updated_at'] = now
-        profile['updated_at'] = now
-        await storage.participants.upsert_details([profile])
+        await storage.participants.upsert_details([profiles[0]])
 
     stored = await storage.participants.get_by_id(user_id)
     if not stored:

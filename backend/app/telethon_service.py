@@ -329,12 +329,10 @@ class TelegramService:
             except (RPCError, Exception) as exc:
                 logger.warning('Telethon failed to fetch user details for %s: %s', user_id, exc)
 
-            photo_id = None
             photo_bytes = None
             photo_mime = None
             photo = getattr(entity, 'photo', None)
             if photo is not None:
-                photo_id = getattr(photo, 'photo_id', None) or getattr(photo, 'id', None)
                 try:
                     photo_bytes = await self.client.download_profile_photo(
                         entity,
@@ -354,12 +352,6 @@ class TelegramService:
                     'last_name': last_name,
                     'display_name': display_name,
                     'about': about,
-                    'is_bot': bool(getattr(entity, 'bot', False)),
-                    'is_verified': bool(getattr(entity, 'verified', False)),
-                    'is_scam': bool(getattr(entity, 'scam', False)),
-                    'is_fake': bool(getattr(entity, 'fake', False)),
-                    'is_restricted': bool(getattr(entity, 'restricted', False)),
-                    'photo_id': photo_id,
                     'photo_bytes': photo_bytes,
                     'photo_mime': photo_mime,
                 },

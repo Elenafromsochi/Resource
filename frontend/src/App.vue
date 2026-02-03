@@ -376,7 +376,6 @@
                 <th>Participant</th>
                 <th>Username / ID</th>
                 <th>Bio</th>
-                <th>Last seen</th>
                 <th class="table-actions">Action</th>
               </tr>
             </thead>
@@ -398,7 +397,6 @@
                         <div class="cell-title">
                           {{ participant.display_name || participant.username || participant.user_id }}
                         </div>
-                        <div class="cell-subtle" v-if="participant.is_bot">Bot</div>
                       </div>
                     </div>
                   </td>
@@ -407,9 +405,6 @@
                     <span v-else>ID: {{ participant.user_id }}</span>
                   </td>
                   <td class="cell-subtle">{{ previewBio(participant.about) }}</td>
-                  <td class="cell-subtle">
-                    {{ formatTimestamp(participant.last_seen_at) || "Unknown" }}
-                  </td>
                   <td class="table-actions">
                     <button
                       type="button"
@@ -421,7 +416,7 @@
                   </td>
                 </tr>
                 <tr v-if="expandedParticipantId === participant.user_id">
-                  <td colspan="5">
+                  <td colspan="4">
                     <div class="detail-panel">
                       <div v-if="participantDetailsLoading[participant.user_id]" class="loading">
                         Loading details...
@@ -443,29 +438,10 @@
                             <p class="label">User ID</p>
                             <span>{{ participant.user_id }}</span>
                           </div>
-                          <div>
-                            <p class="label">Last seen</p>
-                            <span>{{ formatTimestamp(participant.last_seen_at) || "Unknown" }}</span>
-                          </div>
-                          <div>
-                            <p class="label">Profile updated</p>
-                            <span>
-                              {{ formatTimestamp(participant.profile_updated_at) || "Unknown" }}
-                            </span>
-                          </div>
                         </div>
                         <div class="detail-block">
                           <p class="label">Bio</p>
                           <p class="detail-text">{{ participant.about || "No bio" }}</p>
-                        </div>
-                        <div class="detail-tags">
-                          <span v-if="participant.is_verified" class="badge badge-in">Verified</span>
-                          <span v-if="participant.is_bot" class="badge badge-neutral">Bot</span>
-                          <span v-if="participant.is_restricted" class="badge badge-warn">
-                            Restricted
-                          </span>
-                          <span v-if="participant.is_scam" class="badge badge-warn">Scam</span>
-                          <span v-if="participant.is_fake" class="badge badge-warn">Fake</span>
                         </div>
                       </div>
                       <div
@@ -2086,15 +2062,6 @@ button:disabled {
   gap: 6px;
 }
 
-.badge-neutral {
-  background: #e5e7eb;
-  color: #111827;
-}
-
-.badge-warn {
-  background: #fee2e2;
-  color: #991b1b;
-}
 
 .icon-button {
   padding: 4px;
