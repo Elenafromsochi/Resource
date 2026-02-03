@@ -35,10 +35,6 @@ def extract_peer_id(peer: Any) -> int | None:
     return None
 
 
-def chunked(values: list[int], size: int) -> list[list[int]]:
-    return [values[i:i + size] for i in range(0, len(values), size)]
-
-
 def guess_photo_mime(photo_bytes: bytes) -> str:
     if photo_bytes.startswith(b"\xff\xd8\xff"):
         return "image/jpeg"
@@ -228,13 +224,17 @@ class TelegramService:
             {} if include_replies else None
         )
         collected: list[dict[str, Any]] = []
-        try:
-            for channel in channels:
-                channel_id = int(channel['id'])
-                username = channel.get('username')
-                lookup = username or channel_id
+        for channel in channels:
+            channel_id = int(channel['id'])
+            username = channel.get('username')
+            lookup = username or channel_id
+            try:
                 entity = await self.client.get_entity(lookup)
-                channel_messages: list[dict[str, Any]] = []
+            except (RPCError, ValueError, Exception) as exc:
+                logger.warning('Telethon failed to resolve channel %s: %s', lookup, exc)
+                continue
+            channel_messages: list[dict[str, Any]] = []
+            try:
                 async for message in self.client.iter_messages(entity, offset_date=end_date):
                     message_date = normalize_message_date(message.date)
                     if message_date < start_date:
@@ -262,50 +262,33 @@ class TelegramService:
                     channel_messages.append(payload)
                     if max_messages and len(channel_messages) >= max_messages:
                         break
-                collected.extend(channel_messages)
-        except (RPCError, Exception) as exc:
-            logger.warning('Telethon failed to fetch channel messages: %s', exc)
+            except (RPCError, ValueError, Exception) as exc:
+                logger.warning('Telethon failed to fetch channel messages: %s', exc)
+                continue
+            collected.extend(channel_messages)
         return collected
-
-    async def _resolve_user_entities(
-        self,
-        user_ids: list[int],
-    ) -> list[types.User | types.UserEmpty]:
-        await self.start()
-        resolved: list[types.User | types.UserEmpty] = []
-        if not user_ids:
-            return resolved
-        unique_ids = list({int(user_id) for user_id in user_ids if user_id})
-        for batch in chunked(unique_ids, 100):
-            try:
-                entities = await self.client.get_entities(batch)
-                if not isinstance(entities, list):
-                    entities = [entities]
-                for entity in entities:
-                    if isinstance(entity, (types.User, types.UserEmpty)):
-                        resolved.append(entity)
-            except (RPCError, Exception) as exc:
-                logger.warning('Telethon failed to resolve user batch: %s', exc)
-                for user_id in batch:
-                    try:
-                        entity = await self.client.get_entity(user_id)
-                    except (RPCError, Exception) as inner_exc:
-                        logger.warning('Telethon failed to resolve user %s: %s', user_id, inner_exc)
-                        continue
-                    if isinstance(entity, (types.User, types.UserEmpty)):
-                        resolved.append(entity)
-        return resolved
 
     async def fetch_user_profiles(
         self,
         user_ids: list[int],
     ) -> list[dict[str, Any]]:
         await self.start()
-        entities = await self._resolve_user_entities(user_ids)
         profiles: list[dict[str, Any]] = []
-        for entity in entities:
-            user_id = getattr(entity, 'id', None)
-            if user_id is None:
+        if not user_ids:
+            return profiles
+        unique_ids = list({int(user_id) for user_id in user_ids if user_id})
+        for user_id in unique_ids:
+            try:
+                entity = await self.client.get_entity(user_id)
+            except (RPCError, ValueError, Exception) as exc:
+                logger.warning('Telethon failed to resolve user %s: %s', user_id, exc)
+                continue
+
+            if not isinstance(entity, (types.User, types.UserEmpty)):
+                continue
+
+            entity_id = getattr(entity, 'id', None)
+            if entity_id is None:
                 continue
 
             username = getattr(entity, 'username', None)
@@ -315,7 +298,7 @@ class TelegramService:
                 first_name=first_name,
                 last_name=last_name,
                 username=username,
-                user_id=int(user_id),
+                user_id=int(entity_id),
             )
 
             about = None
@@ -327,7 +310,7 @@ class TelegramService:
                 if about is None:
                     about = getattr(full, 'about', None)
             except (RPCError, Exception) as exc:
-                logger.warning('Telethon failed to fetch user details for %s: %s', user_id, exc)
+                logger.warning('Telethon failed to fetch user details for %s: %s', entity_id, exc)
 
             photo_bytes = None
             photo_mime = None
@@ -340,13 +323,13 @@ class TelegramService:
                         download_big=False,
                     )
                 except (RPCError, Exception) as exc:
-                    logger.warning('Telethon failed to download photo for %s: %s', user_id, exc)
+                    logger.warning('Telethon failed to download photo for %s: %s', entity_id, exc)
                 if photo_bytes:
                     photo_mime = guess_photo_mime(photo_bytes)
 
             profiles.append(
                 {
-                    'user_id': int(user_id),
+                    'user_id': int(entity_id),
                     'username': username,
                     'first_name': first_name,
                     'last_name': last_name,

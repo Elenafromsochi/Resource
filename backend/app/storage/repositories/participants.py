@@ -67,6 +67,25 @@ class ParticipantsRepository:
         payload["channels"] = await self.list_channels_for_user(user_id)
         return payload
 
+    async def list_by_ids(self, user_ids: list[int]) -> list[dict[str, Any]]:
+        if not user_ids:
+            return []
+        rows = await self.db.fetch(
+            """
+            SELECT user_id,
+                   username,
+                   first_name,
+                   last_name,
+                   display_name,
+                   about,
+                   photo_bytes
+            FROM participants
+            WHERE user_id = ANY($1::BIGINT[])
+            """,
+            user_ids,
+        )
+        return [dict(row) for row in rows]
+
     async def list_channels_for_user(self, user_id: int) -> list[dict[str, Any]]:
         rows = await self.db.fetch(
             """

@@ -34,6 +34,7 @@ router = APIRouter(prefix='/analysis', tags=['analysis'])
 async def sync_participants(
     messages: list[dict],
     storage: Storage,
+    telegram: TelegramService,
 ) -> None:
     pairs = collect_participant_channel_pairs(messages)
     if not pairs:
@@ -41,6 +42,32 @@ async def sync_participants(
     user_ids = {user_id for user_id, _ in pairs}
     await storage.participants.ensure_minimal(user_ids)
     await storage.participants.upsert_channel_links(pairs)
+
+    existing = await storage.participants.list_by_ids(list(user_ids))
+    existing_map = {int(item['user_id']): item for item in existing}
+    missing_ids: list[int] = []
+    for user_id in user_ids:
+        row = existing_map.get(user_id)
+        if not row:
+            missing_ids.append(user_id)
+            continue
+        has_details = any(
+            row.get(field) is not None
+            for field in (
+                'username',
+                'first_name',
+                'last_name',
+                'display_name',
+                'about',
+            )
+        ) or row.get('photo_bytes') is not None
+        if not has_details:
+            missing_ids.append(user_id)
+
+    if missing_ids:
+        profiles = await telegram.fetch_user_profiles(missing_ids)
+        if profiles:
+            await storage.participants.upsert_details(profiles)
 
 
 @router.post('/hashtags', response_model=HashtagAnalysisResponse)
@@ -98,7 +125,7 @@ async def analyze_hashtags(
         )
 
     try:
-        await sync_participants(messages, storage)
+        await sync_participants(messages, storage, telegram)
     except Exception as exc:
         logger.warning('Participant sync failed: %s', exc)
 
