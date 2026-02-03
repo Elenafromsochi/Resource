@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
-from datetime import timezone
 
 from fastapi import APIRouter
 from fastapi import Depends
 
-from app.analysis_utils import collect_participant_last_seen
+from app.analysis_utils import collect_participant_ids
 from app.analysis_utils import ensure_aware
 from app.analysis_utils import extract_json_payload
 from app.analysis_utils import format_message_block
@@ -37,12 +35,10 @@ async def sync_participants(
     messages: list[dict],
     storage: Storage,
 ) -> None:
-    last_seen_map = collect_participant_last_seen(messages)
-    if not last_seen_map:
+    user_ids = collect_participant_ids(messages)
+    if not user_ids:
         return
-    now = datetime.now(timezone.utc)
-    await storage.participants.ensure_minimal(last_seen_map, now)
-    await storage.participants.update_last_seen(last_seen_map)
+    await storage.participants.ensure_minimal(user_ids)
 
 
 @router.post('/hashtags', response_model=HashtagAnalysisResponse)
