@@ -61,7 +61,26 @@ class ParticipantsRepository:
             """,
             user_id,
         )
-        return self._row_to_dict(row) if row else None
+        if not row:
+            return None
+        payload = self._row_to_dict(row)
+        payload["channels"] = await self.list_channels_for_user(user_id)
+        return payload
+
+    async def list_channels_for_user(self, user_id: int) -> list[dict[str, Any]]:
+        rows = await self.db.fetch(
+            """
+            SELECT channels.id,
+                   channels.username,
+                   channels.title
+            FROM participant_channels
+            JOIN channels ON channels.id = participant_channels.channel_id
+            WHERE participant_channels.participant_id = $1
+            ORDER BY channels.title NULLS LAST, channels.id
+            """,
+            user_id,
+        )
+        return [dict(row) for row in rows]
 
     async def ensure_minimal(self, user_ids: set[int]) -> None:
         if not user_ids:
@@ -117,5 +136,19 @@ class ParticipantsRepository:
                     item.get("photo_mime"),
                 ),
             )
+        await self.db.executemany(query, args)
+
+    async def upsert_channel_links(self, pairs: set[tuple[int, int]]) -> None:
+        if not pairs:
+            return
+        query = """
+            INSERT INTO participant_channels (
+                participant_id,
+                channel_id
+            )
+            VALUES ($1, $2)
+            ON CONFLICT (participant_id, channel_id) DO NOTHING
+        """
+        args = [(participant_id, channel_id) for participant_id, channel_id in pairs]
         await self.db.executemany(query, args)
 
