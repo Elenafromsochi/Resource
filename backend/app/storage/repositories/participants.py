@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from datetime import timezone
 from typing import Any
 import base64
 
@@ -57,10 +56,8 @@ class ParticipantsRepository:
         total = await self.db.fetchval("SELECT COUNT(*) FROM participants")
         return [self._row_to_dict(row) for row in rows], int(total or 0)
 
-    async def list_by_ids(self, user_ids: list[int]) -> list[dict[str, Any]]:
-        if not user_ids:
-            return []
-        rows = await self.db.fetch(
+    async def get_by_id(self, user_id: int) -> dict[str, Any] | None:
+        row = await self.db.fetchrow(
             """
             SELECT user_id,
                    username,
@@ -73,19 +70,50 @@ class ParticipantsRepository:
                    is_scam,
                    is_fake,
                    is_restricted,
-                   photo_id,
+                   photo_bytes,
+                   photo_mime,
                    last_seen_at,
                    profile_updated_at,
                    created_at,
                    updated_at
             FROM participants
-            WHERE user_id = ANY($1::BIGINT[])
+            WHERE user_id = $1
             """,
-            user_ids,
+            user_id,
         )
-        return [dict(row) for row in rows]
+        return self._row_to_dict(row) if row else None
 
-    async def upsert_many(self, participants: list[dict[str, Any]]) -> None:
+    async def ensure_minimal(
+        self,
+        last_seen_map: dict[int, datetime],
+        now: datetime,
+    ) -> None:
+        if not last_seen_map:
+            return
+        query = """
+            INSERT INTO participants (
+                user_id,
+                display_name,
+                last_seen_at,
+                created_at,
+                updated_at
+            )
+            VALUES ($1, $2, $3, $4, $4)
+            ON CONFLICT (user_id) DO NOTHING
+        """
+        args: list[tuple[Any, ...]] = []
+        for user_id, last_seen in last_seen_map.items():
+            args.append(
+                (
+                    user_id,
+                    None,
+                    last_seen,
+                    now,
+                ),
+            )
+        await self.db.executemany(query, args)
+
+    async def upsert_details(self, participants: list[dict[str, Any]]) -> None:
         if not participants:
             return
         query = """
@@ -104,14 +132,14 @@ class ParticipantsRepository:
                 photo_id,
                 photo_bytes,
                 photo_mime,
-                last_seen_at,
                 profile_updated_at,
-                updated_at
+                updated_at,
+                created_at
             )
             VALUES (
                 $1, $2, $3, $4, $5, $6,
                 $7, $8, $9, $10, $11,
-                $12, $13, $14, $15, $16, $17
+                $12, $13, $14, $15, $16, $16
             )
             ON CONFLICT (user_id) DO UPDATE SET
                 username = EXCLUDED.username,
@@ -127,11 +155,6 @@ class ParticipantsRepository:
                 photo_id = EXCLUDED.photo_id,
                 photo_bytes = EXCLUDED.photo_bytes,
                 photo_mime = EXCLUDED.photo_mime,
-                last_seen_at = CASE
-                    WHEN EXCLUDED.last_seen_at IS NULL THEN participants.last_seen_at
-                    WHEN participants.last_seen_at IS NULL THEN EXCLUDED.last_seen_at
-                    ELSE GREATEST(participants.last_seen_at, EXCLUDED.last_seen_at)
-                END,
                 profile_updated_at = EXCLUDED.profile_updated_at,
                 updated_at = EXCLUDED.updated_at
         """
@@ -153,7 +176,6 @@ class ParticipantsRepository:
                     item.get("photo_id"),
                     item.get("photo_bytes"),
                     item.get("photo_mime"),
-                    item.get("last_seen_at"),
                     item.get("profile_updated_at"),
                     item.get("updated_at"),
                 ),

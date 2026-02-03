@@ -36,7 +36,3 @@ DEEPSEEK_TIMEOUT_SECONDS = 30
 
 MIGRATIONS_DIR = Path(__file__).resolve().parent / 'storage' / 'migrations'
 
-PARTICIPANT_PROFILE_TTL_HOURS = int(
-    os.environ.get('PARTICIPANT_PROFILE_TTL_HOURS', '24'),
-)
-

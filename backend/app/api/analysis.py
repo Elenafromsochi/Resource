@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from datetime import timedelta
 from datetime import timezone
 
 from fastapi import APIRouter
@@ -18,7 +17,6 @@ from app.api.dependencies import get_storage
 from app.api.dependencies import get_telegram
 from app.config import DEEPSEEK_MAX_OUTPUT_TOKENS
 from app.config import DEEPSEEK_TEMPERATURE
-from app.config import PARTICIPANT_PROFILE_TTL_HOURS
 from app.deepseek import DeepSeek
 from app.exceptions import ExternalServiceError
 from app.exceptions import NotFoundError
@@ -38,65 +36,12 @@ router = APIRouter(prefix='/analysis', tags=['analysis'])
 async def sync_participants(
     messages: list[dict],
     storage: Storage,
-    telegram: TelegramService,
 ) -> None:
     last_seen_map = collect_participant_last_seen(messages)
     if not last_seen_map:
         return
-
-    user_ids = list(last_seen_map.keys())
-    existing = await storage.participants.list_by_ids(user_ids)
-    existing_map = {int(item['user_id']): item for item in existing}
-
     now = datetime.now(timezone.utc)
-    stale_cutoff = now - timedelta(hours=PARTICIPANT_PROFILE_TTL_HOURS)
-
-    refresh_ids: list[int] = []
-    for user_id in user_ids:
-        current = existing_map.get(user_id)
-        if not current:
-            refresh_ids.append(user_id)
-            continue
-        profile_updated_at = current.get('profile_updated_at')
-        if profile_updated_at is None or profile_updated_at < stale_cutoff:
-            refresh_ids.append(user_id)
-
-    profile_updates: list[dict] = []
-    if refresh_ids:
-        profile_updates = await telegram.fetch_user_profiles(refresh_ids)
-        for profile in profile_updates:
-            user_id = int(profile['user_id'])
-            profile['last_seen_at'] = last_seen_map.get(user_id)
-            profile['profile_updated_at'] = now
-            profile['updated_at'] = now
-
-    fetched_ids = {int(item['user_id']) for item in profile_updates}
-    missing_ids = [user_id for user_id in refresh_ids if user_id not in fetched_ids]
-    for user_id in missing_ids:
-        profile_updates.append(
-            {
-                'user_id': user_id,
-                'username': None,
-                'first_name': None,
-                'last_name': None,
-                'display_name': f'User {user_id}',
-                'about': None,
-                'is_bot': False,
-                'is_verified': False,
-                'is_scam': False,
-                'is_fake': False,
-                'is_restricted': False,
-                'photo_id': None,
-                'photo_bytes': None,
-                'photo_mime': None,
-                'last_seen_at': last_seen_map.get(user_id),
-                'profile_updated_at': now,
-                'updated_at': now,
-            },
-        )
-
-    if profile_updates:
-        await storage.participants.upsert_many(profile_updates)
+    await storage.participants.ensure_minimal(last_seen_map, now)
     await storage.participants.update_last_seen(last_seen_map)
 
 
@@ -155,7 +100,7 @@ async def analyze_hashtags(
         )
 
     try:
-        await sync_participants(messages, storage, telegram)
+        await sync_participants(messages, storage)
     except Exception as exc:
         logger.warning('Participant sync failed: %s', exc)
 
