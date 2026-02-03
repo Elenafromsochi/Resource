@@ -191,9 +191,13 @@ class TelegramService:
         start_date: datetime,
         end_date: datetime,
         max_messages: int | None = None,
+        include_replies: bool = True,
+        include_forwarded: bool = True,
     ) -> list[dict[str, Any]]:
         await self.start()
-        reply_cache: dict[tuple[int, int], dict[str, Any]] = {}
+        reply_cache: dict[tuple[int, int], dict[str, Any]] | None = (
+            {} if include_replies else None
+        )
         collected: list[dict[str, Any]] = []
         try:
             for channel in channels:
@@ -211,19 +215,22 @@ class TelegramService:
                     text = message.message or ''
                     if not text:
                         continue
-                    reply_data = await self.build_reply_data(message, reply_cache, channel_id)
-                    forwarded = self.build_forwarded_data(message)
-                    channel_messages.append(
-                        {
-                            'channel_id': channel_id,
-                            'message_id': message.id,
-                            'user_id': message.sender_id,
-                            'date': message_date,
-                            'text': text,
-                            'reply_to': reply_data,
-                            'forwarded': forwarded,
-                        },
-                    )
+                    reply_data = None
+                    if include_replies and reply_cache is not None:
+                        reply_data = await self.build_reply_data(message, reply_cache, channel_id)
+                    forwarded = self.build_forwarded_data(message) if include_forwarded else None
+                    payload = {
+                        'channel_id': channel_id,
+                        'message_id': message.id,
+                        'user_id': message.sender_id,
+                        'date': message_date,
+                        'text': text,
+                    }
+                    if reply_data:
+                        payload['reply_to'] = reply_data
+                    if forwarded:
+                        payload['forwarded'] = forwarded
+                    channel_messages.append(payload)
                     if max_messages and len(channel_messages) >= max_messages:
                         break
                 collected.extend(channel_messages)
