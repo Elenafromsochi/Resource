@@ -147,25 +147,13 @@
           <label>
             Start date
             <div class="date-field">
-              <input type="datetime-local" v-model="analysisStartPicker" />
-              <input
-                type="text"
-                v-model="analysisForm.startDate"
-                placeholder="ДД.ММ.ГГГГ чч:мм"
-                required
-              />
+              <input type="datetime-local" v-model="analysisStartPicker" required />
             </div>
           </label>
           <label>
             End date
             <div class="date-field">
-              <input type="datetime-local" v-model="analysisEndPicker" />
-              <input
-                type="text"
-                v-model="analysisForm.endDate"
-                placeholder="ДД.ММ.ГГГГ чч:мм"
-                required
-              />
+              <input type="datetime-local" v-model="analysisEndPicker" required />
             </div>
           </label>
           <label>
