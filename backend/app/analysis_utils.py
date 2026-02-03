@@ -99,3 +99,29 @@ def format_message_block(message: dict[str, Any]) -> str:
     lines.append('text:')
     lines.append(message.get('text') or '')
     return '\n'.join(lines)
+
+
+def collect_participant_last_seen(
+    messages: list[dict[str, Any]],
+) -> dict[int, datetime]:
+    last_seen: dict[int, datetime] = {}
+
+    def update_seen(user_id: Any, message_date: Any) -> None:
+        if not user_id or not isinstance(message_date, datetime):
+            return
+        user_id_int = int(user_id)
+        current = last_seen.get(user_id_int)
+        if current is None or message_date > current:
+            last_seen[user_id_int] = message_date
+
+    for message in messages:
+        message_date = message.get('date')
+        update_seen(message.get('user_id'), message_date)
+
+        reply = message.get('reply_to') or {}
+        update_seen(reply.get('user_id'), message_date)
+
+        forwarded = message.get('forwarded') or {}
+        update_seen(forwarded.get('from_user_id'), message_date)
+
+    return last_seen

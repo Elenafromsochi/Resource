@@ -35,6 +35,35 @@ def extract_peer_id(peer: Any) -> int | None:
     return None
 
 
+def chunked(values: list[int], size: int) -> list[list[int]]:
+    return [values[i:i + size] for i in range(0, len(values), size)]
+
+
+def guess_photo_mime(photo_bytes: bytes) -> str:
+    if photo_bytes.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if photo_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if photo_bytes.startswith(b"GIF87a") or photo_bytes.startswith(b"GIF89a"):
+        return "image/gif"
+    return "image/jpeg"
+
+
+def build_display_name(
+    *,
+    first_name: str | None,
+    last_name: str | None,
+    username: str | None,
+    user_id: int,
+) -> str:
+    parts = [name for name in [first_name, last_name] if name]
+    if parts:
+        return " ".join(parts).strip()
+    if username:
+        return username
+    return str(user_id)
+
+
 class TelegramService:
     def __init__(self) -> None:
         self.client = TelegramClient(
@@ -237,3 +266,102 @@ class TelegramService:
         except (RPCError, Exception) as exc:
             logger.warning('Telethon failed to fetch channel messages: %s', exc)
         return collected
+
+    async def _resolve_user_entities(
+        self,
+        user_ids: list[int],
+    ) -> list[types.User | types.UserEmpty]:
+        await self.start()
+        resolved: list[types.User | types.UserEmpty] = []
+        if not user_ids:
+            return resolved
+        unique_ids = list({int(user_id) for user_id in user_ids if user_id})
+        for batch in chunked(unique_ids, 100):
+            try:
+                entities = await self.client.get_entities(batch)
+                if not isinstance(entities, list):
+                    entities = [entities]
+                for entity in entities:
+                    if isinstance(entity, (types.User, types.UserEmpty)):
+                        resolved.append(entity)
+            except (RPCError, Exception) as exc:
+                logger.warning('Telethon failed to resolve user batch: %s', exc)
+                for user_id in batch:
+                    try:
+                        entity = await self.client.get_entity(user_id)
+                    except (RPCError, Exception) as inner_exc:
+                        logger.warning('Telethon failed to resolve user %s: %s', user_id, inner_exc)
+                        continue
+                    if isinstance(entity, (types.User, types.UserEmpty)):
+                        resolved.append(entity)
+        return resolved
+
+    async def fetch_user_profiles(
+        self,
+        user_ids: list[int],
+    ) -> list[dict[str, Any]]:
+        await self.start()
+        entities = await self._resolve_user_entities(user_ids)
+        profiles: list[dict[str, Any]] = []
+        for entity in entities:
+            user_id = getattr(entity, 'id', None)
+            if user_id is None:
+                continue
+
+            username = getattr(entity, 'username', None)
+            first_name = getattr(entity, 'first_name', None)
+            last_name = getattr(entity, 'last_name', None)
+            display_name = build_display_name(
+                first_name=first_name,
+                last_name=last_name,
+                username=username,
+                user_id=int(user_id),
+            )
+
+            about = None
+            try:
+                full = await self.client(functions.users.GetFullUserRequest(entity))
+                full_user = getattr(full, 'full_user', None)
+                if full_user is not None:
+                    about = getattr(full_user, 'about', None)
+                if about is None:
+                    about = getattr(full, 'about', None)
+            except (RPCError, Exception) as exc:
+                logger.warning('Telethon failed to fetch user details for %s: %s', user_id, exc)
+
+            photo_id = None
+            photo_bytes = None
+            photo_mime = None
+            photo = getattr(entity, 'photo', None)
+            if photo is not None:
+                photo_id = getattr(photo, 'photo_id', None) or getattr(photo, 'id', None)
+                try:
+                    photo_bytes = await self.client.download_profile_photo(
+                        entity,
+                        file=bytes,
+                        download_big=False,
+                    )
+                except (RPCError, Exception) as exc:
+                    logger.warning('Telethon failed to download photo for %s: %s', user_id, exc)
+                if photo_bytes:
+                    photo_mime = guess_photo_mime(photo_bytes)
+
+            profiles.append(
+                {
+                    'user_id': int(user_id),
+                    'username': username,
+                    'first_name': first_name,
+                    'last_name': last_name,
+                    'display_name': display_name,
+                    'about': about,
+                    'is_bot': bool(getattr(entity, 'bot', False)),
+                    'is_verified': bool(getattr(entity, 'verified', False)),
+                    'is_scam': bool(getattr(entity, 'scam', False)),
+                    'is_fake': bool(getattr(entity, 'fake', False)),
+                    'is_restricted': bool(getattr(entity, 'restricted', False)),
+                    'photo_id': photo_id,
+                    'photo_bytes': photo_bytes,
+                    'photo_mime': photo_mime,
+                },
+            )
+        return profiles

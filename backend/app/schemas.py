@@ -107,3 +107,31 @@ class HashtagAnalysisResponse(BaseModel):
     channels: list[int]
     total_messages: int
     hashtags: list[HashtagFrequency]
+
+
+class ParticipantRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    user_id: int
+    username: str | None
+    first_name: str | None
+    last_name: str | None
+    display_name: str | None
+    about: str | None
+    is_bot: bool
+    is_verified: bool
+    is_scam: bool
+    is_fake: bool
+    is_restricted: bool
+    photo_url: str | None
+    last_seen_at: datetime | None
+    profile_updated_at: datetime | None
+    created_at: datetime | None
+    updated_at: datetime | None
+
+
+class ParticipantList(BaseModel):
+    items: list[ParticipantRead]
+    total: int
+    limit: int
+    offset: int
