@@ -34,6 +34,7 @@ router = APIRouter(prefix='/analysis', tags=['analysis'])
 async def sync_participants(
     messages: list[dict],
     storage: Storage,
+    telegram: TelegramService,
 ) -> None:
     pairs = collect_participant_channel_pairs(messages)
     if not pairs:
@@ -41,6 +42,20 @@ async def sync_participants(
     user_ids = {user_id for user_id, _ in pairs}
     await storage.participants.ensure_minimal(user_ids)
     await storage.participants.upsert_channel_links(pairs)
+    try:
+        missing_ids = await storage.participants.list_missing_details(user_ids)
+    except Exception as exc:
+        logger.warning('Failed to detect missing participants: %s', exc)
+        return
+    if not missing_ids:
+        return
+    try:
+        profiles = await telegram.fetch_user_profiles(missing_ids)
+    except Exception as exc:
+        logger.warning('Failed to fetch participant profiles: %s', exc)
+        return
+    if profiles:
+        await storage.participants.upsert_details(profiles)
 
 
 @router.post('/hashtags', response_model=HashtagAnalysisResponse)
@@ -98,7 +113,7 @@ async def analyze_hashtags(
         )
 
     try:
-        await sync_participants(messages, storage)
+        await sync_participants(messages, storage, telegram)
     except Exception as exc:
         logger.warning('Participant sync failed: %s', exc)
 

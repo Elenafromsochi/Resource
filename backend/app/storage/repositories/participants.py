@@ -82,6 +82,20 @@ class ParticipantsRepository:
         )
         return [dict(row) for row in rows]
 
+    async def list_missing_details(self, user_ids: set[int]) -> list[int]:
+        if not user_ids:
+            return []
+        rows = await self.db.fetch(
+            """
+            SELECT user_id
+            FROM participants
+            WHERE user_id = ANY($1::bigint[])
+              AND display_name IS NULL
+            """,
+            list(user_ids),
+        )
+        return [int(row["user_id"]) for row in rows]
+
     async def ensure_minimal(self, user_ids: set[int]) -> None:
         if not user_ids:
             return

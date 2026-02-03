@@ -161,6 +161,20 @@ class TelegramService:
             logger.warning('Telethon dialog fetch failed: %s', exc)
         return list(channels.values())
 
+    async def _load_dialog_entities(self) -> dict[int, Any]:
+        await self.start()
+        entities: dict[int, Any] = {}
+        try:
+            async for dialog in self.client.iter_dialogs():
+                entity = dialog.entity
+                entity_id = getattr(entity, 'id', None)
+                if entity_id is None:
+                    continue
+                entities[int(entity_id)] = entity
+        except (RPCError, Exception) as exc:
+            logger.warning('Telethon dialog entity fetch failed: %s', exc)
+        return entities
+
     async def build_reply_data(
         self,
         message: types.Message,
@@ -228,13 +242,38 @@ class TelegramService:
             {} if include_replies else None
         )
         collected: list[dict[str, Any]] = []
-        try:
-            for channel in channels:
-                channel_id = int(channel['id'])
-                username = channel.get('username')
-                lookup = username or channel_id
-                entity = await self.client.get_entity(lookup)
-                channel_messages: list[dict[str, Any]] = []
+        dialog_entities: dict[int, Any] | None = None
+        for channel in channels:
+            channel_id_value = channel.get('id')
+            if channel_id_value is None:
+                continue
+            channel_id = int(channel_id_value)
+            username = channel.get('username')
+            entity = None
+            resolve_error: Exception | None = None
+            if username:
+                try:
+                    entity = await self.client.get_entity(username)
+                except (RPCError, Exception) as exc:
+                    resolve_error = exc
+            if entity is None:
+                try:
+                    entity = await self.client.get_entity(channel_id)
+                except (RPCError, Exception) as exc:
+                    resolve_error = exc
+            if entity is None:
+                if dialog_entities is None:
+                    dialog_entities = await self._load_dialog_entities()
+                entity = dialog_entities.get(channel_id) if dialog_entities else None
+            if entity is None:
+                logger.warning(
+                    'Telethon failed to resolve channel %s: %s',
+                    channel_id,
+                    resolve_error,
+                )
+                continue
+            channel_messages: list[dict[str, Any]] = []
+            try:
                 async for message in self.client.iter_messages(entity, offset_date=end_date):
                     message_date = normalize_message_date(message.date)
                     if message_date < start_date:
@@ -262,9 +301,10 @@ class TelegramService:
                     channel_messages.append(payload)
                     if max_messages and len(channel_messages) >= max_messages:
                         break
-                collected.extend(channel_messages)
-        except (RPCError, Exception) as exc:
-            logger.warning('Telethon failed to fetch channel messages: %s', exc)
+            except (RPCError, Exception) as exc:
+                logger.warning('Telethon failed to fetch channel %s: %s', channel_id, exc)
+                continue
+            collected.extend(channel_messages)
         return collected
 
     async def _resolve_user_entities(
@@ -276,24 +316,42 @@ class TelegramService:
         if not user_ids:
             return resolved
         unique_ids = list({int(user_id) for user_id in user_ids if user_id})
-        for batch in chunked(unique_ids, 100):
-            try:
-                entities = await self.client.get_entities(batch)
+        get_entities = getattr(self.client, 'get_entities', None)
+        if callable(get_entities):
+            for batch in chunked(unique_ids, 100):
+                try:
+                    entities = await get_entities(batch)
+                except (RPCError, Exception) as exc:
+                    logger.warning('Telethon failed to resolve user batch: %s', exc)
+                    entities = None
+                if entities is None:
+                    for user_id in batch:
+                        try:
+                            entity = await self.client.get_entity(user_id)
+                        except (RPCError, Exception) as inner_exc:
+                            logger.warning(
+                                'Telethon failed to resolve user %s: %s',
+                                user_id,
+                                inner_exc,
+                            )
+                            continue
+                        if isinstance(entity, (types.User, types.UserEmpty)):
+                            resolved.append(entity)
+                    continue
                 if not isinstance(entities, list):
                     entities = [entities]
                 for entity in entities:
                     if isinstance(entity, (types.User, types.UserEmpty)):
                         resolved.append(entity)
+            return resolved
+        for user_id in unique_ids:
+            try:
+                entity = await self.client.get_entity(user_id)
             except (RPCError, Exception) as exc:
-                logger.warning('Telethon failed to resolve user batch: %s', exc)
-                for user_id in batch:
-                    try:
-                        entity = await self.client.get_entity(user_id)
-                    except (RPCError, Exception) as inner_exc:
-                        logger.warning('Telethon failed to resolve user %s: %s', user_id, inner_exc)
-                        continue
-                    if isinstance(entity, (types.User, types.UserEmpty)):
-                        resolved.append(entity)
+                logger.warning('Telethon failed to resolve user %s: %s', user_id, exc)
+                continue
+            if isinstance(entity, (types.User, types.UserEmpty)):
+                resolved.append(entity)
         return resolved
 
     async def fetch_user_profiles(
