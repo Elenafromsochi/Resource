@@ -146,21 +146,27 @@
           </label>
           <label>
             Start date
-            <input
-              type="text"
-              v-model="analysisForm.startDate"
-              placeholder="ДД.ММ.ГГГГ чч:мм"
-              required
-            />
+            <div class="date-field">
+              <input type="datetime-local" v-model="analysisStartPicker" />
+              <input
+                type="text"
+                v-model="analysisForm.startDate"
+                placeholder="ДД.ММ.ГГГГ чч:мм"
+                required
+              />
+            </div>
           </label>
           <label>
             End date
-            <input
-              type="text"
-              v-model="analysisForm.endDate"
-              placeholder="ДД.ММ.ГГГГ чч:мм"
-              required
-            />
+            <div class="date-field">
+              <input type="datetime-local" v-model="analysisEndPicker" />
+              <input
+                type="text"
+                v-model="analysisForm.endDate"
+                placeholder="ДД.ММ.ГГГГ чч:мм"
+                required
+              />
+            </div>
           </label>
           <label>
             Max messages per channel
@@ -701,6 +707,10 @@ const formatRussianDateTime = (date) =>
   `${pad2(date.getDate())}.${pad2(date.getMonth() + 1)}.${date.getFullYear()} ` +
   `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
 
+const formatDateTimeLocal = (date) =>
+  `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}` +
+  `T${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+
 const parseRussianDateTime = (value) => {
   const match = String(value)
     .trim()
@@ -726,6 +736,35 @@ const parseRussianDateTime = (value) => {
   return date;
 };
 
+const parseDateTimeLocal = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return null;
+  }
+  const [datePart, timePart] = raw.split("T");
+  if (!datePart || !timePart) {
+    return null;
+  }
+  const [year, month, day] = datePart.split("-").map(Number);
+  const timePieces = timePart.split(":");
+  const hour = Number(timePieces[0]);
+  const minute = Number(timePieces[1]);
+  if ([year, month, day, hour, minute].some((item) => Number.isNaN(item))) {
+    return null;
+  }
+  const date = new Date(year, month - 1, day, hour, minute);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day ||
+    date.getHours() !== hour ||
+    date.getMinutes() !== minute
+  ) {
+    return null;
+  }
+  return date;
+};
+
 const parseDateTimeInput = (value) => {
   if (!value) {
     return null;
@@ -738,12 +777,38 @@ const parseDateTimeInput = (value) => {
   if (russianDate) {
     return russianDate;
   }
+  const localDate = parseDateTimeLocal(raw);
+  if (localDate) {
+    return localDate;
+  }
   const parsed = new Date(raw);
   if (Number.isNaN(parsed.getTime())) {
     return null;
   }
   return parsed;
 };
+
+const analysisStartPicker = computed({
+  get: () => {
+    const date = parseDateTimeInput(analysisForm.value.startDate);
+    return date ? formatDateTimeLocal(date) : "";
+  },
+  set: (value) => {
+    const date = parseDateTimeLocal(value);
+    analysisForm.value.startDate = date ? formatRussianDateTime(date) : "";
+  },
+});
+
+const analysisEndPicker = computed({
+  get: () => {
+    const date = parseDateTimeInput(analysisForm.value.endDate);
+    return date ? formatDateTimeLocal(date) : "";
+  },
+  set: (value) => {
+    const date = parseDateTimeLocal(value);
+    analysisForm.value.endDate = date ? formatRussianDateTime(date) : "";
+  },
+});
 
 const preserveScrollPosition = async (action) => {
   const scrollY = window.scrollY;
@@ -1412,6 +1477,11 @@ label {
   gap: 6px;
   font-size: 13px;
   color: #374151;
+}
+
+.date-field {
+  display: grid;
+  gap: 6px;
 }
 
 input:not([type="checkbox"]):not([type="radio"]) {

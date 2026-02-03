@@ -66,12 +66,12 @@ async def analyze_hashtags(
             hashtags=[],
         )
 
-    existing_hashtags = await storage.hashtags.list_all()
     messages = await telegram.fetch_channel_messages(
         channels,
         start_date=start_date,
         end_date=end_date,
         max_messages=payload.max_messages_per_channel,
+        include_replies=False,
     )
     messages.sort(key=lambda item: item['date'])
     if not messages:
@@ -84,6 +84,7 @@ async def analyze_hashtags(
             hashtags=[],
         )
 
+    existing_hashtags = await storage.hashtags.list_all()
     counts: dict[str, int] = {}
     blocks = [format_message_block(message) for message in messages]
     try:
