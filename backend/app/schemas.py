@@ -109,6 +109,12 @@ class HashtagAnalysisResponse(BaseModel):
     hashtags: list[HashtagFrequency]
 
 
+class ParticipantChannel(BaseModel):
+    id: int
+    username: str | None
+    title: str | None
+
+
 class ParticipantRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -119,6 +125,7 @@ class ParticipantRead(BaseModel):
     display_name: str | None
     about: str | None
     photo_url: str | None
+    channels: list[ParticipantChannel] = Field(default_factory=list)
 
 
 class ParticipantList(BaseModel):

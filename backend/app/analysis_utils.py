@@ -101,24 +101,28 @@ def format_message_block(message: dict[str, Any]) -> str:
     return '\n'.join(lines)
 
 
-def collect_participant_ids(messages: list[dict[str, Any]]) -> set[int]:
-    user_ids: set[int] = set()
+def collect_participant_channel_pairs(
+    messages: list[dict[str, Any]],
+) -> set[tuple[int, int]]:
+    pairs: set[tuple[int, int]] = set()
 
-    def add_user(value: Any) -> None:
-        if not value:
+    def add_pair(user_id: Any, channel_id: Any) -> None:
+        if not user_id or not channel_id:
             return
         try:
-            user_ids.add(int(value))
+            user_id_int = int(user_id)
+            channel_id_int = int(channel_id)
         except (TypeError, ValueError):
             return
+        if user_id_int == channel_id_int:
+            return
+        pairs.add((user_id_int, channel_id_int))
 
     for message in messages:
-        add_user(message.get('user_id'))
+        channel_id = message.get('channel_id')
+        add_pair(message.get('user_id'), channel_id)
 
         reply = message.get('reply_to') or {}
-        add_user(reply.get('user_id'))
+        add_pair(reply.get('user_id'), channel_id)
 
-        forwarded = message.get('forwarded') or {}
-        add_user(forwarded.get('from_user_id'))
-
-    return user_ids
+    return pairs

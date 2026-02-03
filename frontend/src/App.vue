@@ -443,6 +443,22 @@
                           <p class="label">Bio</p>
                           <p class="detail-text">{{ participant.about || "No bio" }}</p>
                         </div>
+                        <div class="detail-block">
+                          <p class="label">Channels</p>
+                          <div v-if="participant.channels && participant.channels.length" class="tag-list">
+                            <span
+                              v-for="channel in participant.channels"
+                              :key="channel.id"
+                              class="tag-pill"
+                            >
+                              {{
+                                channel.title ||
+                                (channel.username ? `@${channel.username}` : channel.id)
+                              }}
+                            </span>
+                          </div>
+                          <p v-else class="cell-subtle">No channels linked yet.</p>
+                        </div>
                       </div>
                       <div
                         v-if="participantDetailsError[participant.user_id]"
@@ -2056,10 +2072,18 @@ button:disabled {
   white-space: pre-wrap;
 }
 
-.detail-tags {
+.tag-list {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.tag-pill {
+  background: #e5e7eb;
+  color: #111827;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
 }
 
 

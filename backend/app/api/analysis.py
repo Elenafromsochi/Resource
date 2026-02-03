@@ -5,7 +5,7 @@ import logging
 from fastapi import APIRouter
 from fastapi import Depends
 
-from app.analysis_utils import collect_participant_ids
+from app.analysis_utils import collect_participant_channel_pairs
 from app.analysis_utils import ensure_aware
 from app.analysis_utils import extract_json_payload
 from app.analysis_utils import format_message_block
@@ -35,10 +35,12 @@ async def sync_participants(
     messages: list[dict],
     storage: Storage,
 ) -> None:
-    user_ids = collect_participant_ids(messages)
-    if not user_ids:
+    pairs = collect_participant_channel_pairs(messages)
+    if not pairs:
         return
+    user_ids = {user_id for user_id, _ in pairs}
     await storage.participants.ensure_minimal(user_ids)
+    await storage.participants.upsert_channel_links(pairs)
 
 
 @router.post('/hashtags', response_model=HashtagAnalysisResponse)
