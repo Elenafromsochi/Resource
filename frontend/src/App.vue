@@ -423,45 +423,56 @@
                 <tr v-if="expandedParticipantId === participant.user_id">
                   <td colspan="5">
                     <div class="detail-panel">
-                      <div class="detail-grid">
-                        <div>
-                          <p class="label">Name</p>
-                          <strong>
-                            {{ participant.display_name || participant.username || participant.user_id }}
-                          </strong>
+                      <div v-if="participantDetailsLoading[participant.user_id]" class="loading">
+                        Loading details...
+                      </div>
+                      <div v-else>
+                        <div class="detail-grid">
+                          <div>
+                            <p class="label">Name</p>
+                            <strong>
+                              {{ participant.display_name || participant.username || participant.user_id }}
+                            </strong>
+                          </div>
+                          <div>
+                            <p class="label">Username</p>
+                            <span v-if="participant.username">@{{ participant.username }}</span>
+                            <span v-else class="cell-subtle">No username</span>
+                          </div>
+                          <div>
+                            <p class="label">User ID</p>
+                            <span>{{ participant.user_id }}</span>
+                          </div>
+                          <div>
+                            <p class="label">Last seen</p>
+                            <span>{{ formatTimestamp(participant.last_seen_at) || "Unknown" }}</span>
+                          </div>
+                          <div>
+                            <p class="label">Profile updated</p>
+                            <span>
+                              {{ formatTimestamp(participant.profile_updated_at) || "Unknown" }}
+                            </span>
+                          </div>
                         </div>
-                        <div>
-                          <p class="label">Username</p>
-                          <span v-if="participant.username">@{{ participant.username }}</span>
-                          <span v-else class="cell-subtle">No username</span>
+                        <div class="detail-block">
+                          <p class="label">Bio</p>
+                          <p class="detail-text">{{ participant.about || "No bio" }}</p>
                         </div>
-                        <div>
-                          <p class="label">User ID</p>
-                          <span>{{ participant.user_id }}</span>
-                        </div>
-                        <div>
-                          <p class="label">Last seen</p>
-                          <span>{{ formatTimestamp(participant.last_seen_at) || "Unknown" }}</span>
-                        </div>
-                        <div>
-                          <p class="label">Profile updated</p>
-                          <span>
-                            {{ formatTimestamp(participant.profile_updated_at) || "Unknown" }}
+                        <div class="detail-tags">
+                          <span v-if="participant.is_verified" class="badge badge-in">Verified</span>
+                          <span v-if="participant.is_bot" class="badge badge-neutral">Bot</span>
+                          <span v-if="participant.is_restricted" class="badge badge-warn">
+                            Restricted
                           </span>
+                          <span v-if="participant.is_scam" class="badge badge-warn">Scam</span>
+                          <span v-if="participant.is_fake" class="badge badge-warn">Fake</span>
                         </div>
                       </div>
-                      <div class="detail-block">
-                        <p class="label">Bio</p>
-                        <p class="detail-text">{{ participant.about || "No bio" }}</p>
-                      </div>
-                      <div class="detail-tags">
-                        <span v-if="participant.is_verified" class="badge badge-in">Verified</span>
-                        <span v-if="participant.is_bot" class="badge badge-neutral">Bot</span>
-                        <span v-if="participant.is_restricted" class="badge badge-warn">
-                          Restricted
-                        </span>
-                        <span v-if="participant.is_scam" class="badge badge-warn">Scam</span>
-                        <span v-if="participant.is_fake" class="badge badge-warn">Fake</span>
+                      <div
+                        v-if="participantDetailsError[participant.user_id]"
+                        class="error"
+                      >
+                        {{ participantDetailsError[participant.user_id] }}
                       </div>
                     </div>
                   </td>
@@ -768,6 +779,8 @@ const participantError = ref("");
 const participantLimit = 10;
 const participantOffset = ref(0);
 const expandedParticipantId = ref(null);
+const participantDetailsLoading = ref({});
+const participantDetailsError = ref({});
 
 const prompts = ref([]);
 const promptLoading = ref(false);
@@ -1012,8 +1025,48 @@ const getParticipantInitials = (participant) => {
 };
 
 const toggleParticipantDetails = (userId) => {
-  expandedParticipantId.value =
-    expandedParticipantId.value === userId ? null : userId;
+  if (expandedParticipantId.value === userId) {
+    expandedParticipantId.value = null;
+    return;
+  }
+  expandedParticipantId.value = userId;
+  loadParticipantDetails(userId);
+};
+
+const updateParticipantRecord = (payload) => {
+  const index = participants.value.findIndex(
+    (participant) => participant.user_id === payload.user_id
+  );
+  if (index === -1) {
+    return;
+  }
+  participants.value[index] = { ...participants.value[index], ...payload };
+};
+
+const setParticipantDetailState = (refMap, userId, value) => {
+  refMap.value = { ...refMap.value, [userId]: value };
+};
+
+const loadParticipantDetails = async (userId) => {
+  setParticipantDetailState(participantDetailsLoading, userId, true);
+  setParticipantDetailState(participantDetailsError, userId, "");
+  try {
+    const response = await fetch(`${apiBase}/api/participants/${userId}`);
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error(payload?.detail || "Unable to load participant details.");
+    }
+    const data = await response.json();
+    updateParticipantRecord(data);
+  } catch (err) {
+    setParticipantDetailState(
+      participantDetailsError,
+      userId,
+      err.message || "Load error."
+    );
+  } finally {
+    setParticipantDetailState(participantDetailsLoading, userId, false);
+  }
 };
 
 const ensurePromptSelection = () => {
