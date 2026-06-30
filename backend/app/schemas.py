@@ -1,135 +1,126 @@
+"""Pydantic-схемы запросов/ответов."""
+
 from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel
-from pydantic import ConfigDict
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 
-class ChannelCreate(BaseModel):
-    username: str = Field(
-        ...,
-    )
+# --- Авторизация ---
+class RegisterIn(BaseModel):
+    username: str
+    password: str
+    display_name: str = ""
 
 
-class ChannelRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+class LoginIn(BaseModel):
+    username: str
+    password: str
 
-    id: int
+
+class TelegramAuthIn(BaseModel):
+    init_data: str  # сырая строка Telegram WebApp.initData
+
+
+class TokenOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class ProfileOut(BaseModel):
+    id: str
     username: str | None
-    title: str | None
-    created_at: datetime | None
+    display_name: str
+    auth_provider: str
+    level: str
+    trust_capital: float
+    give_count: int
+    ask_count: int
+    on_vacation: bool
+
+    class Config:
+        from_attributes = True
 
 
-class ChannelList(BaseModel):
-    items: list[ChannelRead]
+# --- Ресурс / Потребность ---
+class ListingIn(BaseModel):
+    category: str
+    title: str
+    description: str = ""
+    location: str | None = None
+    fields: dict = Field(default_factory=dict)
 
 
-class ChannelSearchItem(BaseModel):
-    id: int
-    username: str | None
-    title: str | None
-    description: str | None
+class ResourceIn(ListingIn):
+    ideal_for: str = ""
 
 
-class ChannelSearchList(BaseModel):
-    items: list[ChannelSearchItem]
+class ResourceOut(BaseModel):
+    id: str
+    owner_id: str
+    category: str
+    title: str
+    description: str
+    location: str | None
+    fields: dict
+    ideal_for: str
+    status: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
 
-class ChannelImportSummary(BaseModel):
-    total_found: int
-    created: int
-    skipped: int
+class NeedOut(BaseModel):
+    id: str
+    owner_id: str
+    category: str
+    title: str
+    description: str
+    location: str | None
+    fields: dict
+    status: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
 
-class HashtagCreate(BaseModel):
-    tag: str = Field(...)
+# --- ИИ-уточнения ---
+class ClarifyIn(BaseModel):
+    category: str
+    side: str = "give"  # give|ask
+    fields: dict = Field(default_factory=dict)
 
 
-class HashtagRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    tag: str
-    created_at: datetime | None
-
-
-class HashtagList(BaseModel):
-    items: list[HashtagRead]
-    total: int
-    limit: int
-    offset: int
+# --- Мэтчинг ---
+class MatchOut(BaseModel):
+    resource_id: str
+    need_id: str
+    score: float
+    is_match: bool
 
 
-class PromptCreate(BaseModel):
-    name: str = Field(...)
-    content: str = Field(...)
+# --- Сделка / договор ---
+class DealCreateIn(BaseModel):
+    resource_id: str | None = None
+    need_id: str | None = None
+    counterparty_id: str
 
 
-class PromptUpdate(BaseModel):
-    name: str | None = None
-    content: str | None = None
+class MessageIn(BaseModel):
+    text: str
 
 
-class PromptRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    name: str
-    content: str
-    created_at: datetime | None
-    updated_at: datetime | None
+class ContractUpdateIn(BaseModel):
+    updates: dict
 
 
-class PromptList(BaseModel):
-    items: list[PromptRead]
-
-
-class HashtagFrequency(BaseModel):
-    tag: str
-    count: int
-    in_db: bool
-
-
-class HashtagAnalysisRequest(BaseModel):
-    prompt_id: int
-    start_date: datetime
-    end_date: datetime
-    channel_ids: list[int] | None = None
-    max_messages_per_channel: int | None = None
-
-
-class HashtagAnalysisResponse(BaseModel):
-    prompt_id: int
-    start_date: datetime
-    end_date: datetime
-    channels: list[int]
-    total_messages: int
-    hashtags: list[HashtagFrequency]
-
-
-class ParticipantChannel(BaseModel):
-    id: int
-    username: str | None
-    title: str | None
-
-
-class ParticipantRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    user_id: int
-    username: str | None
-    first_name: str | None
-    last_name: str | None
-    display_name: str | None
-    about: str | None
-    photo_url: str | None
-    channels: list[ParticipantChannel] = Field(default_factory=list)
-
-
-class ParticipantList(BaseModel):
-    items: list[ParticipantRead]
-    total: int
-    limit: int
-    offset: int
+# --- Отзыв STAR ---
+class ReviewIn(BaseModel):
+    situation: str = ""
+    task: str = ""
+    action: str = ""
+    result: str = ""
+    rating: int = 5

@@ -1,63 +1,38 @@
-from __future__ import annotations
+"""Точка входа FastAPI «Ресурс». Один бэкенд для сайта и Telegram Mini App."""
 
-from contextlib import asynccontextmanager
+from __future__ import annotations
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.analysis import router as analysis_router
-from app.api.channels import router as channels_router
-from app.api.hashtags import router as hashtags_router
-from app.api.health import router as health_router
-from app.api.participants import router as participants_router
-from app.api.prompts import router as prompts_router
-from app.config import API_PREFIX
-from app.config import APP_NAME
-from app.config import CORS_ORIGINS
-from app.config import POSTGRES_URL
-from app.deepseek import DeepSeek
-from app.exception_handlers import register_exception_handlers
-from app.storage import Storage
-from app.storage import apply_migrations
-from app.telethon_service import TelegramService
+from .config import settings
+from .db import init_db
+from .api import auth, deals, listings, matches
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    storage = await Storage.create(POSTGRES_URL)
-    await apply_migrations(storage.db)
-    deepseek = DeepSeek()
-    telegram = TelegramService()
-    await telegram.start()
-    app.state.storage = storage
-    app.state.deepseek = deepseek
-    app.state.telegram = telegram
-    yield
-    await telegram.close()
-    await deepseek.close()
-    await storage.close()
+def create_app() -> FastAPI:
+    app = FastAPI(title="Ресурс", version="0.1.0")
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    @app.on_event("startup")
+    def _startup() -> None:
+        init_db()
+
+    @app.get("/api/health", tags=["health"])
+    def health() -> dict:
+        return {"status": "ok", "service": "resurs"}
+
+    for module in (auth, listings, matches, deals):
+        app.include_router(module.router, prefix="/api")
+
+    return app
 
 
-app = FastAPI(
-    title=APP_NAME,
-    lifespan=lifespan,
-    root_path=API_PREFIX,
-    openapi_url='/openapi.json',
-    docs_url='/docs',
-    redoc_url='/redoc',
-)
-register_exception_handlers(app)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=['*'],
-    allow_headers=['*'],
-)
-
-app.include_router(health_router)
-app.include_router(channels_router)
-app.include_router(hashtags_router)
-app.include_router(participants_router)
-app.include_router(prompts_router)
-app.include_router(analysis_router)
+app = create_app()

@@ -19,3 +19,7 @@ dist/
 
 *.log
 .DS_Store
+
+# local sqlite / test artifacts
+*.db
+.pytest_cache/

@@ -1,49 +1,38 @@
 services:
   postgres:
-    image: postgres:latest
-    command: postgres
+    image: postgres:16
     environment:
-      POSTGRES_DB: db
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
+      POSTGRES_DB: resurs
+      POSTGRES_USER: resurs
+      POSTGRES_PASSWORD: resurs
     ports:
-      - 5436:5432
+      - "5436:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-
-  mongo:
-    image: mongo:latest
-    ports:
-      - 27017:27017
-    volumes:
-      - mongo_data:/data/db
 
   backend:
     build:
       context: ./backend
     environment:
-      POSTGRES_URL: postgresql://user:password@postgres:5432/db
-      MONGO_URL: mongodb://mongo:27017
-      MONGO_DB: app
-      TELEGRAM_API_ID: ${TELEGRAM_API_ID}
-      TELEGRAM_API_HASH: ${TELEGRAM_API_HASH}
-      TELETHON_SESSION: ${TELETHON_SESSION}
-      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      DATABASE_URL: postgresql+psycopg2://resurs:resurs@postgres:5432/resurs
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      MATCH_THRESHOLD: ${MATCH_THRESHOLD:-40}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
     ports:
-      - 8001:8000
+      - "8000:8000"
     volumes:
       - ./backend:/app
     depends_on:
       - postgres
-      - mongo
 
   frontend:
     build:
       context: ./frontend
     environment:
-      VITE_API_BASE_URL: http://localhost:8001
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
     ports:
-      - 5174:5173
+      - "5173:5173"
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -52,4 +41,3 @@ services:
 
 volumes:
   postgres_data:
-  mongo_data:
