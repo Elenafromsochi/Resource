@@ -1,5 +1,7 @@
 // API-клиент. Токен хранится в localStorage, чтобы сессия переживала перезагрузку.
-const BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+// Пустая строка = тот же адрес, что и сайт (когда сервер сам отдаёт фронт).
+// undefined (локальная разработка) = отдельный бэкенд на :8000.
+const BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 
 export function getToken() { return localStorage.getItem('token') }
 export function setToken(t) { t ? localStorage.setItem('token', t) : localStorage.removeItem('token') }

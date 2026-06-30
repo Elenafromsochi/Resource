@@ -23,3 +23,6 @@ dist/
 # local sqlite / test artifacts
 *.db
 .pytest_cache/
+
+# built frontend copied into backend for single-image serving
+backend/static/
