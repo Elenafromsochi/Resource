@@ -16,8 +16,8 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg2://resurs:resurs@postgres:5432/resurs
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
-      MATCH_THRESHOLD: ${MATCH_THRESHOLD:-40}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-claude-haiku-4-5-20251001}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
     ports:
       - "8000:8000"

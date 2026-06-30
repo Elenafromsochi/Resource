@@ -5,7 +5,7 @@ import tempfile
 _db_fd, _db_path = tempfile.mkstemp(suffix=".db")
 os.environ["DATABASE_URL"] = f"sqlite:///{_db_path}"
 os.environ["JWT_SECRET"] = "test-secret"
-os.environ["TELEGRAM_BOT_TOKEN"] = "test:token"
+os.environ.pop("ANTHROPIC_API_KEY", None)  # тесты гоняют офлайн-помощника
 
 import pytest
 from fastapi.testclient import TestClient
@@ -27,9 +27,9 @@ def client():
     return TestClient(app)
 
 
-def auth_headers(client, username, password="pass12345"):
-    client.post("/api/auth/register", json={"username": username, "password": password})
+def auth_headers(client, email, password="pass12345"):
+    client.post("/api/auth/register", json={"email": email, "password": password})
     token = client.post(
-        "/api/auth/login", json={"username": username, "password": password}
+        "/api/auth/login", json={"email": email, "password": password}
     ).json()["access_token"]
     return {"Authorization": f"Bearer {token}"}

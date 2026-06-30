@@ -1,13 +1,13 @@
-"""Точка входа FastAPI «Ресурс». Один бэкенд для сайта и Telegram Mini App."""
+"""Точка входа FastAPI «Ресурс»: регистрация и ИИ-кабинет."""
 
 from __future__ import annotations
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from .api import auth, profile
 from .config import settings
 from .db import init_db
-from .api import auth, deals, listings, matches
 
 
 def create_app() -> FastAPI:
@@ -29,7 +29,7 @@ def create_app() -> FastAPI:
     def health() -> dict:
         return {"status": "ok", "service": "resurs"}
 
-    for module in (auth, listings, matches, deals):
+    for module in (auth, profile):
         app.include_router(module.router, prefix="/api")
 
     return app

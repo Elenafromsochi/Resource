@@ -2,25 +2,18 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
 
 # --- Авторизация ---
 class RegisterIn(BaseModel):
-    username: str
-    password: str
-    display_name: str = ""
+    email: EmailStr
+    password: str = Field(min_length=6)
 
 
 class LoginIn(BaseModel):
-    username: str
+    email: EmailStr
     password: str
-
-
-class TelegramAuthIn(BaseModel):
-    init_data: str  # сырая строка Telegram WebApp.initData
 
 
 class TokenOut(BaseModel):
@@ -28,99 +21,35 @@ class TokenOut(BaseModel):
     token_type: str = "bearer"
 
 
-class ProfileOut(BaseModel):
-    id: str
-    username: str | None
-    display_name: str
-    auth_provider: str
-    level: str
-    trust_capital: float
-    give_count: int
-    ask_count: int
-    on_vacation: bool
-
-    class Config:
-        from_attributes = True
+# --- Профиль / личный кабинет ---
+class ProfileData(BaseModel):
+    full_name: str = ""
+    occupation: str = ""
+    city: str = ""
+    about: str = ""
+    skills: list[str] = Field(default_factory=list)
+    interests: list[str] = Field(default_factory=list)
+    goals: str = ""
+    contacts: str = ""
 
 
-# --- Ресурс / Потребность ---
-class ListingIn(BaseModel):
-    category: str
-    title: str
-    description: str = ""
-    location: str | None = None
-    fields: dict = Field(default_factory=dict)
+class ProfileOut(ProfileData):
+    email: str
+    completeness: float = 0.0
 
 
-class ResourceIn(ListingIn):
-    ideal_for: str = ""
+# --- ИИ-помощник кабинета ---
+class AssistIn(BaseModel):
+    text: str  # свободный рассказ о себе (или ответ на вопрос помощника)
 
 
-class ResourceOut(BaseModel):
-    id: str
-    owner_id: str
-    category: str
-    title: str
-    description: str
-    location: str | None
-    fields: dict
-    ideal_for: str
-    status: str
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
+class AssistQuestion(BaseModel):
+    field: str
+    question: str
+    examples: list[str] = Field(default_factory=list)
 
 
-class NeedOut(BaseModel):
-    id: str
-    owner_id: str
-    category: str
-    title: str
-    description: str
-    location: str | None
-    fields: dict
-    status: str
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
-
-
-# --- ИИ-уточнения ---
-class ClarifyIn(BaseModel):
-    category: str
-    side: str = "give"  # give|ask
-    fields: dict = Field(default_factory=dict)
-
-
-# --- Мэтчинг ---
-class MatchOut(BaseModel):
-    resource_id: str
-    need_id: str
-    score: float
-    is_match: bool
-
-
-# --- Сделка / договор ---
-class DealCreateIn(BaseModel):
-    resource_id: str | None = None
-    need_id: str | None = None
-    counterparty_id: str
-
-
-class MessageIn(BaseModel):
-    text: str
-
-
-class ContractUpdateIn(BaseModel):
-    updates: dict
-
-
-# --- Отзыв STAR ---
-class ReviewIn(BaseModel):
-    situation: str = ""
-    task: str = ""
-    action: str = ""
-    result: str = ""
-    rating: int = 5
+class AssistOut(BaseModel):
+    draft: ProfileData  # предложенные ИИ значения полей (черновик, редактируемый)
+    questions: list[AssistQuestion] = Field(default_factory=list)
+    provider: str  # "claude" | "local"
