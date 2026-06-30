@@ -5,9 +5,21 @@ from __future__ import annotations
 import os
 
 
+def _normalize_db_url(url: str) -> str:
+    """Привести строку подключения к виду, понятному SQLAlchemy.
+
+    Хостинги (в т.ч. Timeweb) часто выдают URL вида `postgres://...`, а SQLAlchemy
+    ожидает `postgresql://...`. Приводим автоматически, чтобы вставленная как есть
+    строка просто работала.
+    """
+    if url.startswith("postgres://"):
+        return "postgresql://" + url[len("postgres://"):]
+    return url
+
+
 class Settings:
     # БД: по умолчанию SQLite (локальный запуск/тесты), в docker — Postgres.
-    database_url: str = os.getenv("DATABASE_URL", "sqlite:///./resurs.db")
+    database_url: str = _normalize_db_url(os.getenv("DATABASE_URL", "sqlite:///./resurs.db"))
 
     # Секрет для подписи JWT.
     jwt_secret: str = os.getenv("JWT_SECRET", "dev-secret-change-me")
