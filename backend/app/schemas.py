@@ -31,6 +31,7 @@ class ProfileData(BaseModel):
     interests: list[str] = Field(default_factory=list)
     goals: str = ""
     contacts: str = ""
+    answers: dict = Field(default_factory=dict)
 
 
 class ProfileOut(ProfileData):

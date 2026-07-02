@@ -26,4 +26,5 @@ export const api = {
   getProfile: () => request('GET', '/profile'),
   saveProfile: (b) => request('PUT', '/profile', b),
   assist: (text) => request('POST', '/profile/assist', { text }),
+  getQuestions: () => request('GET', '/questions'),
 }

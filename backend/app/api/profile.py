@@ -45,6 +45,7 @@ def _to_out(user: User, p: Profile) -> ProfileOut:
         interests=p.interests or [],
         goals=p.goals,
         contacts=p.contacts,
+        answers=p.answers or {},
         completeness=_completeness(p),
     )
 
@@ -69,6 +70,7 @@ def update_profile(
     p.interests = body.interests
     p.goals = body.goals
     p.contacts = body.contacts
+    p.answers = body.answers
     db.add(p)
     db.commit()
     db.refresh(p)

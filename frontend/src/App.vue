@@ -23,7 +23,7 @@ function logout() { setToken(null); loggedIn.value = false; profile.value = null
 // --- личный кабинет ---
 const form = reactive({
   full_name: '', occupation: '', city: '', about: '',
-  skills: [], interests: [], goals: '', contacts: '',
+  skills: [], interests: [], goals: '', contacts: '', answers: {},
 })
 function fill(data) { Object.keys(form).forEach(k => { if (k in data) form[k] = data[k] }) }
 
@@ -65,6 +65,42 @@ const interestsText = computed({
   set: (v) => { form.interests = v.split(',').map(s => s.trim()).filter(Boolean) },
 })
 const completeness = computed(() => Math.round((profile.value?.completeness || 0) * 100))
+
+// --- голосовой ввод (Web Speech API, встроен в браузер) ---
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+const voiceSupported = !!SR
+const listeningField = ref('')  // какое поле сейчас записывается
+
+function listen(key, appendText) {
+  if (!SR) {
+    error.value = 'Голосовой ввод не поддерживается в этом браузере (лучше всего — Chrome).'
+    return
+  }
+  const rec = new SR()
+  rec.lang = 'ru-RU'
+  rec.interimResults = false
+  rec.maxAlternatives = 1
+  listeningField.value = key
+  rec.onresult = (e) => appendText(e.results[0][0].transcript)
+  rec.onerror = () => { error.value = 'Не удалось распознать речь. Разрешите доступ к микрофону и попробуйте ещё раз.' }
+  rec.onend = () => { if (listeningField.value === key) listeningField.value = '' }
+  try { rec.start() } catch (_) { listeningField.value = '' }
+}
+
+function appendStory(t) { story.value = story.value ? story.value + ' ' + t : t }
+function appendAnswer(id, t) { form.answers[id] = form.answers[id] ? form.answers[id] + ' ' + t : t }
+
+// --- вопросы про ресурсы ---
+const resourceQuestions = ref([])
+onMounted(async () => {
+  try {
+    resourceQuestions.value = (await api.getQuestions()).questions
+    // гарантируем, что у каждого вопроса есть поле для ответа
+    for (const q of resourceQuestions.value) {
+      if (!(q.id in form.answers)) form.answers[q.id] = ''
+    }
+  } catch (_) { /* вопросы не критичны для входа */ }
+})
 </script>
 
 <template>
@@ -96,9 +132,16 @@ const completeness = computed(() => Math.round((profile.value?.completeness || 0
         <p class="hint">Расскажите о себе в свободной форме — помощник разложит по полям.</p>
         <textarea v-model="story" rows="4"
           placeholder="Например: Меня зовут Анна, живу в Сочи, работаю дизайнером. Умею вёрстка, фотография. Увлекаюсь спортом. Ищу новые проекты."></textarea>
-        <button class="primary" :disabled="busy || !story.trim()" @click="runAssist">
-          {{ busy ? 'Думаю…' : 'Разобрать рассказ' }}
-        </button>
+        <div class="row">
+          <button class="primary" :disabled="busy || !story.trim()" @click="runAssist">
+            {{ busy ? 'Думаю…' : 'Разобрать рассказ' }}
+          </button>
+          <button v-if="voiceSupported" class="mic" :class="{ rec: listeningField === 'story' }"
+            @click="listen('story', appendStory)">
+            🎤 {{ listeningField === 'story' ? 'Слушаю…' : 'Голосом' }}
+          </button>
+        </div>
+        <p v-if="!voiceSupported" class="hint">🎤 Голосовой ввод работает в браузере Chrome; в Safari на iPhone/iPad пока не поддерживается.</p>
         <span v-if="provider" class="prov">провайдер: {{ provider === 'claude' ? 'Claude' : 'офлайн' }}</span>
         <div v-if="questions.length" class="q">
           <p>Чтобы профиль был полнее, уточните:</p>
@@ -109,6 +152,21 @@ const completeness = computed(() => Math.round((profile.value?.completeness || 0
             </li>
           </ul>
         </div>
+      </section>
+
+      <!-- Вопросы про ресурсы -->
+      <section v-if="resourceQuestions.length" class="card">
+        <h2>Вопросы про ресурсы</h2>
+        <p class="hint">Ответьте на вопросы — текстом или голосом. Ответы сохранятся в профиле.</p>
+        <div v-for="q in resourceQuestions" :key="q.id" class="qitem">
+          <label>{{ q.text }}</label>
+          <textarea v-model="form.answers[q.id]" rows="2" :placeholder="(q.examples || []).join(', ')"></textarea>
+          <button v-if="voiceSupported" class="mic" :class="{ rec: listeningField === q.id }"
+            @click="listen(q.id, t => appendAnswer(q.id, t))">
+            🎤 {{ listeningField === q.id ? 'Слушаю…' : 'Ответить голосом' }}
+          </button>
+        </div>
+        <button class="primary" @click="save">Сохранить ответы</button>
       </section>
 
       <!-- Поля профиля (редактируемые) -->
@@ -151,4 +209,9 @@ a { display: inline-block; margin-top: 12px; margin-left: 12px; color: #2f6bff; 
 .hint { color: #777; font-size: 14px; }
 .prov { font-size: 12px; color: #999; margin-left: 10px; }
 .q { font-size: 14px; } .q em { color: #888; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.mic { background: #fff; border: 1px solid #2f6bff; color: #2f6bff; }
+.mic.rec { background: #ffe8e8; border-color: #e23; color: #c22; }
+.qitem { margin-top: 12px; }
+.qitem label { font-size: 14px; color: #333; }
 </style>

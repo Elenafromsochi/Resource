@@ -3,17 +3,31 @@
 from __future__ import annotations
 
 import os
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 
 def _normalize_db_url(url: str) -> str:
-    """Привести строку подключения к виду, понятному SQLAlchemy.
+    """Привести строку подключения к виду, понятному SQLAlchemy, и убрать
+    зависимость от файла SSL-сертификата.
 
-    Хостинги (в т.ч. Timeweb) часто выдают URL вида `postgres://...`, а SQLAlchemy
-    ожидает `postgresql://...`. Приводим автоматически, чтобы вставленная как есть
-    строка просто работала.
+    1. Хостинги (в т.ч. Timeweb) выдают URL вида `postgres://...`, SQLAlchemy
+       ожидает `postgresql://...`.
+    2. Timeweb добавляет `sslmode=verify-full` и `sslrootcert=...`, что требует
+       файла корневого сертификата внутри контейнера (его там нет — приложение
+       падает при старте). Для прототипа переключаем на `sslmode=require`
+       (соединение шифруется, но сертификат не проверяется) и убираем sslrootcert.
     """
     if url.startswith("postgres://"):
-        return "postgresql://" + url[len("postgres://"):]
+        url = "postgresql://" + url[len("postgres://"):]
+
+    if url.startswith("postgresql://"):
+        parts = urlsplit(url)
+        query = dict(parse_qsl(parts.query))
+        if query.get("sslmode") in ("verify-full", "verify-ca"):
+            query["sslmode"] = "require"
+        query.pop("sslrootcert", None)
+        url = urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
     return url
 
 

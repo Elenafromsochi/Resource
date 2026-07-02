@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from .api import auth, profile
+from .api import auth, meta, profile
 from .config import settings
 from .db import init_db
 
@@ -31,13 +31,18 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     def _startup() -> None:
-        init_db()
+        # Не роняем весь сайт, если база временно недоступна: логируем и продолжаем,
+        # чтобы страница хотя бы открывалась (а причина видна в логах).
+        try:
+            init_db()
+        except Exception as exc:  # pragma: no cover
+            print(f"[startup] init_db failed: {exc!r}")
 
     @app.get("/api/health", tags=["health"])
     def health() -> dict:
         return {"status": "ok", "service": "resurs"}
 
-    for module in (auth, profile):
+    for module in (auth, profile, meta):
         app.include_router(module.router, prefix="/api")
 
     # Отдаём собранный сайт с того же адреса (если сборка присутствует).
