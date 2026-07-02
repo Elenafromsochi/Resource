@@ -141,7 +141,7 @@ onMounted(async () => {
             🎤 {{ listeningField === 'story' ? 'Слушаю…' : 'Голосом' }}
           </button>
         </div>
-        <p v-if="!voiceSupported" class="hint">🎤 Голосовой ввод работает в браузере Chrome; в Safari на iPhone/iPad пока не поддерживается.</p>
+        <p v-if="!voiceSupported" class="hint">🎤 Чтобы надиктовать голосом: нажмите на поле ввода, затем на значок микрофона на клавиатуре (встроенная диктовка iPhone/iPad — бесплатно).</p>
         <span v-if="provider" class="prov">провайдер: {{ provider === 'claude' ? 'Claude' : 'офлайн' }}</span>
         <div v-if="questions.length" class="q">
           <p>Чтобы профиль был полнее, уточните:</p>
