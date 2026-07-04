@@ -30,10 +30,9 @@ jobs:
           npm ci
           npm run build
 
+      # Требуется один раз включить Pages: Settings → Pages → Source: GitHub Actions.
       - name: Configure Pages
         uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

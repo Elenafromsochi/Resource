@@ -26,3 +26,6 @@ dist/
 
 # built frontend copied into backend for single-image serving
 backend/static/
+
+# локальная автономная сборка
+frontend/dist-single/
