@@ -14,6 +14,7 @@ async function request(method, path, body) {
     method, headers, body: body ? JSON.stringify(body) : undefined,
   })
   if (!res.ok) {
+    if (res.status === 401) setToken(null)  // сбрасываем протухший токен
     const detail = await res.json().catch(() => ({}))
     throw new Error(typeof detail.detail === 'string' ? detail.detail : `Ошибка ${res.status}`)
   }

@@ -28,8 +28,14 @@ const form = reactive({
 function fill(data) { Object.keys(form).forEach(k => { if (k in data) form[k] = data[k] }) }
 
 async function loadProfile() {
-  profile.value = await api.getProfile()
-  fill(profile.value)
+  try {
+    profile.value = await api.getProfile()
+    fill(profile.value)
+  } catch (e) {
+    // Протухший/битый вход → показываем окно входа, а не пустой экран.
+    logout()
+    error.value = 'Пожалуйста, войдите снова.'
+  }
 }
 onMounted(() => { if (loggedIn.value) loadProfile() })
 
