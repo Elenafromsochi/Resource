@@ -357,11 +357,12 @@ const initial = computed(() => (form.full_name || profile.value?.email || '?').t
 </template>
 
 <style>
-:root { --bg: #0a0a0c; --panel: #141219; --input: #0e0d12; --gold: #d9b45b; --gold2: #f0d38a;
+:root { --bg: #000; --panel: #0d0d0f; --input: #0a0a0c; --gold: #d9b45b; --gold2: #f0d38a;
   --line: rgba(217,180,91,.28); --cream: #ece3cf; --muted: #8f876f; }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg);
-  background-image: radial-gradient(1200px 500px at 50% -200px, rgba(217,180,91,.10), transparent 70%);
+html, body { background: #000; }
+body { margin: 0; min-height: 100vh;
+  background-image: radial-gradient(1200px 500px at 50% -220px, rgba(217,180,91,.07), transparent 70%);
   color: var(--cream); font-family: system-ui, -apple-system, sans-serif; }
 .app { max-width: 620px; margin: 0 auto; padding: 18px 16px 90px; }
 h3 { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; margin: 6px 0; color: var(--cream); font-size: 21px; }
