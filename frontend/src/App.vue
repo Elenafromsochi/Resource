@@ -56,14 +56,36 @@ async function runAssist() {
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition
 const voiceSupported = !!SR
 const listeningField = ref('')
+let activeRec = null
+let voiceStop = false
+// Непрерывная запись: паузы не прерывают, останавливается только вручную
+// (повторным нажатием 🎤). На паузах авто-возобновляется.
 function listen(key, appendText) {
+  if (listeningField.value === key) { voiceStop = true; if (activeRec) activeRec.stop(); return }
   if (!SR) { error.value = 'На iPhone/iPad нажмите 🎤 на клавиатуре. В Chrome работает эта кнопка.'; return }
-  const rec = new SR(); rec.lang = 'ru-RU'; rec.interimResults = false; rec.maxAlternatives = 1
+  voiceStop = false
   listeningField.value = key
-  rec.onresult = (e) => appendText(e.results[0][0].transcript)
-  rec.onerror = () => { error.value = 'Не удалось распознать. Разрешите доступ к микрофону.' }
-  rec.onend = () => { if (listeningField.value === key) listeningField.value = '' }
-  try { rec.start() } catch (_) { listeningField.value = '' }
+  const begin = () => {
+    const rec = new SR()
+    rec.lang = 'ru-RU'; rec.interimResults = false; rec.continuous = true; rec.maxAlternatives = 1
+    activeRec = rec
+    rec.onresult = (e) => {
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) appendText(e.results[i][0].transcript)
+      }
+    }
+    rec.onerror = (ev) => {
+      if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
+        error.value = 'Разрешите доступ к микрофону.'; voiceStop = true
+      }
+    }
+    rec.onend = () => {
+      if (voiceStop) { listeningField.value = ''; activeRec = null }
+      else begin()
+    }
+    try { rec.start() } catch (_) { }
+  }
+  begin()
 }
 function appendStory(t) { story.value = story.value ? story.value + ' ' + t : t }
 
@@ -119,7 +141,7 @@ function catLabel(c) { return CATS[c]?.label || c }
 
 // --- мастер (пошагово, с учётом категории) ---
 const wiz = reactive({ open: false, type: 'give', step: 0, draft: emptyDraft() })
-function emptyDraft() { return { category: '', title: '', entry: '', impact: '', fields: {}, ideal: '', important: [] } }
+function emptyDraft() { return { category: '', title: '', entry: '', impact: '', fields: {}, ideal: '', term: '', customDate: '' } }
 function startWizard(type, presetTitle = '') {
   wiz.type = type; wiz.step = 0; wiz.draft = emptyDraft()
   if (presetTitle) wiz.draft.title = presetTitle
@@ -133,7 +155,7 @@ const wsteps = computed(() => {
   const titleQ = t === 'give' ? 'Опиши в двух словах, что именно' : 'Что именно тебе нужно (в двух словах)'
   const entryQ = t === 'give'
     ? 'Что из этого ты любишь делать больше всего / что даётся легко?'
-    : 'Как поймёшь, что задача решена?'
+    : 'Опишите идеальную картину решения — как всё выглядит, когда задача решена? (можно голосом)'
   const steps = [
     ...base,
     { key: 'title', kind: 'text', q: titleQ, hint: 'можно голосом' },
@@ -146,6 +168,9 @@ const wsteps = computed(() => {
   steps.push(...fields.map(f => ({ key: f.key, kind: f.type === 'text' ? 'text' : 'choice', q: f.q, hint: f.hint, options: f.options || [], inFields: true })))
   // «Кому идеально» — только у ресурса. Шаг «важные параметры ×4» вернём вместе с мэтчингом.
   if (t === 'give') steps.push({ key: 'ideal', kind: 'text', q: 'Кому и в каких условиях этот ресурс идеально подойдёт?' })
+  // Срок жизни потребности: пока не закрыта — в ленте; вышел срок — в архив.
+  if (t === 'ask') steps.push({ key: 'term', kind: 'term', q: 'На какой срок эта потребность?',
+    options: ['Неделя', '2 недели', 'Месяц', 'Своя дата'] })
   return steps
 })
 const cur = computed(() => wsteps.value[wiz.step] || wsteps.value[0])
@@ -174,8 +199,17 @@ const canProceed = computed(() => {
 })
 function wizNext() { if (wiz.step < wsteps.value.length - 1) wiz.step++; else finishWizard() }
 function wizBack() { if (wiz.step > 0) wiz.step--; else wiz.open = false }
+function computeDeadline(d) {
+  if (!d.term) return ''
+  if (d.term === 'Своя дата') return d.customDate || ''
+  const days = { 'Неделя': 7, '2 недели': 14, 'Месяц': 30 }[d.term] || 0
+  const x = new Date(); x.setDate(x.getDate() + days)
+  return x.toISOString().slice(0, 10)
+}
 function finishWizard() {
-  form.resources.push({ id: `${Date.now()}${Math.floor(Math.random() * 1000)}`, type: wiz.type, ...JSON.parse(JSON.stringify(wiz.draft)) })
+  const item = { id: `${Date.now()}${Math.floor(Math.random() * 1000)}`, type: wiz.type, ...JSON.parse(JSON.stringify(wiz.draft)) }
+  if (wiz.type === 'ask') item.deadline = computeDeadline(wiz.draft)
+  form.resources.push(item)
   wiz.open = false; save()
 }
 function removeItem(id) { form.resources = form.resources.filter(r => r.id !== id); save() }
@@ -183,6 +217,12 @@ const expanded = reactive({})
 function toggle(id) { expanded[id] = !expanded[id] }
 const gives = computed(() => form.resources.filter(r => r.type === 'give'))
 const asks = computed(() => form.resources.filter(r => r.type === 'ask'))
+// Срок жизни потребности: пока не вышел — в ленте; вышел — в архив (но остаётся для мэтча).
+function todayISO() { return new Date().toISOString().slice(0, 10) }
+function isArchived(r) { return !!(r.deadline && r.deadline < todayISO()) }
+const activeAsks = computed(() => asks.value.filter(r => !isArchived(r)))
+const archivedAsks = computed(() => asks.value.filter(r => isArchived(r)))
+function fmtDate(iso) { return iso ? iso.split('-').reverse().slice(0, 2).join('.') : '' }
 function itemFields(r) {
   const cfg = CATS[r.category]?.[r.type] || []
   return cfg.map(f => ({ key: f.key, label: f.q, value: r.fields?.[f.key] })).filter(x => x.value)
@@ -258,7 +298,7 @@ const initial = computed(() => (form.full_name || profile.value?.email || '?').t
         <textarea v-model="story" rows="3" placeholder="Например: дизайнер, раньше преподавала английский, могу консультировать по маркетингу…"></textarea>
         <div class="row">
           <button class="gold" :disabled="busy || !story.trim()" @click="runAssist">{{ busy ? 'Думаю…' : 'Выявить ресурсы' }}</button>
-          <button v-if="voiceSupported" class="ghost" :class="{ rec: listeningField === 'story' }" @click="listen('story', appendStory)">🎤 {{ listeningField === 'story' ? 'Слушаю…' : 'Голосом' }}</button>
+          <button v-if="voiceSupported" class="ghost" :class="{ rec: listeningField === 'story' }" @click="listen('story', appendStory)">{{ listeningField === 'story' ? '⏹ Стоп' : '🎤 Голосом' }}</button>
           <span v-if="provider" class="prov">через: {{ providerLabel }}</span>
         </div>
         <p v-if="!voiceSupported" class="hint sm">🎤 На iPhone/iPad диктовка — через микрофон на клавиатуре.</p>
@@ -290,19 +330,34 @@ const initial = computed(() => (form.full_name || profile.value?.email || '?').t
       <!-- Прошу -->
       <section class="block">
         <div class="bhead"><span class="btitle">🙏 Прошу / Покупаю</span><button class="add" @click="startWizard('ask')">+ Добавить</button></div>
-        <p v-if="!asks.length" class="empty">Пока пусто. Что вам нужно, ищете или хотите купить?</p>
-        <div v-for="r in asks" :key="r.id" class="rescard">
+        <p v-if="!activeAsks.length" class="empty">Пока пусто. Что вам нужно, ищете или хотите купить?</p>
+        <div v-for="r in activeAsks" :key="r.id" class="rescard">
           <button class="xbtn" @click="removeItem(r.id)">✕</button>
           <div class="rk">Прошу · {{ catLabel(r.category) }}</div>
           <div class="rtitle2">{{ CATS[r.category]?.icon }} {{ r.title }}</div>
           <div class="rk">Условия</div>
           <div class="rv">{{ termIcon(r.fields?.terms) }} {{ r.fields?.terms || '—' }}</div>
+          <template v-if="r.deadline">
+            <div class="rk">Срок</div>
+            <div class="rv">⏳ до {{ fmtDate(r.deadline) }}</div>
+          </template>
           <template v-if="expanded[r.id]">
             <div class="rgrid"><span v-for="f in keyFields(r)" :key="f.key">{{ fieldIcon(f.key) }} {{ f.value }}</span></div>
             <div v-if="r.entry" class="rsline">🎯 {{ r.entry }}</div>
             <div v-if="r.impact" class="rsline">🌍 {{ r.impact }}</div>
           </template>
           <button class="more" @click="toggle(r.id)">{{ expanded[r.id] ? 'свернуть' : 'подробнее' }}</button>
+        </div>
+      </section>
+
+      <!-- Архив потребностей: срок вышел, но остаются для будущего мэтча -->
+      <section v-if="archivedAsks.length" class="block">
+        <div class="bhead"><span class="btitle">🗄 Архив</span></div>
+        <p class="empty">Срок вышел — не в общей ленте, но остаются для будущего мэтча.</p>
+        <div v-for="r in archivedAsks" :key="r.id" class="rescard arch">
+          <button class="xbtn" @click="removeItem(r.id)">✕</button>
+          <div class="rk">Прошу · {{ catLabel(r.category) }} · архив</div>
+          <div class="rtitle2">{{ CATS[r.category]?.icon }} {{ r.title }}</div>
         </div>
       </section>
 
@@ -331,9 +386,12 @@ const initial = computed(() => (form.full_name || profile.value?.email || '?').t
           <button v-for="c in CAT_KEYS" :key="c" class="chip big" :class="{ sel: wiz.draft.category === c }" @click="wiz.draft.category = c">{{ CATS[c].icon }} {{ CATS[c].label }}</button>
         </div>
 
-        <!-- множественный выбор важных параметров -->
-        <div v-else-if="cur.kind === 'multi'" class="opts">
-          <button v-for="o in cur.options" :key="o.key" class="chip" :class="{ sel: wiz.draft.important.includes(o.key) }" @click="toggleImportant(o.key)">{{ o.label }}</button>
+        <!-- срок потребности -->
+        <div v-else-if="cur.kind === 'term'">
+          <div class="opts">
+            <button v-for="o in cur.options" :key="o" class="chip" :class="{ sel: wiz.draft.term === o }" @click="wiz.draft.term = o">{{ o }}</button>
+          </div>
+          <input v-if="wiz.draft.term === 'Своя дата'" type="date" v-model="wiz.draft.customDate" />
         </div>
 
         <!-- выбор варианта / текст -->
@@ -343,7 +401,7 @@ const initial = computed(() => (form.full_name || profile.value?.email || '?').t
           </div>
           <div class="row">
             <input :value="curVal()" @input="setCur($event.target.value)" :placeholder="cur.options && cur.options.length ? 'или впишите своё' : 'ваш ответ'" />
-            <button v-if="voiceSupported" class="ghost mic" :class="{ rec: listeningField === 'wiz' }" @click="listen('wiz', t => setCur((curVal() ? curVal() + ' ' : '') + t))">🎤</button>
+            <button v-if="voiceSupported" class="ghost mic" :class="{ rec: listeningField === 'wiz' }" @click="listen('wiz', t => setCur((curVal() ? curVal() + ' ' : '') + t))">{{ listeningField === 'wiz' ? '⏹' : '🎤' }}</button>
           </div>
         </template>
 
@@ -399,6 +457,7 @@ h3 { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; margin: 6
 .rgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin-top: 14px; font-size: 13px; color: var(--cream); }
 .rsline { margin-top: 8px; font-size: 13px; color: var(--muted); }
 .more { background: none; border: none; color: var(--muted); font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; padding: 10px 0 2px; margin: 0; }
+.rescard.arch { opacity: .55; }
 .xbtn { position: absolute; top: 8px; right: 8px; background: none; border: none; color: var(--muted); font-size: 15px; cursor: pointer; }
 input, textarea { display: block; width: 100%; padding: 11px; margin-top: 8px; background: var(--input); border: 1px solid var(--line); border-radius: 10px; color: var(--cream); font: inherit; }
 input::placeholder, textarea::placeholder { color: #5f5947; }
