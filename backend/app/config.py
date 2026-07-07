@@ -44,6 +44,11 @@ class Settings:
     anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
     ai_model: str = os.getenv("AI_MODEL", "claude-haiku-4-5-20251001")
 
+    # YandexGPT (российский ИИ, работает с РФ-сервера без VPN).
+    yandex_api_key: str = os.getenv("YANDEX_API_KEY", "")
+    yandex_folder_id: str = os.getenv("YANDEX_FOLDER_ID", "")
+    yandex_model: str = os.getenv("YANDEX_MODEL", "yandexgpt-lite")
+
     # CORS.
     cors_origins: list[str] = [
         o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",") if o.strip()

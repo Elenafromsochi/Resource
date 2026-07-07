@@ -125,6 +125,57 @@ class ClaudeAssistant:
         return {"draft": draft, "questions": _missing_questions(draft), "provider": self.provider}
 
 
+class YandexAssistant:
+    """YandexGPT через Yandex Cloud Foundation Models. Работает с РФ-сервера без VPN.
+
+    При любой ошибке сети/ключа — мягкий откат на офлайн-помощника, чтобы форма
+    всегда отвечала.
+    """
+
+    provider = "yandex"
+
+    def __init__(self, api_key: str, folder_id: str, model: str):
+        self.api_key = api_key
+        self.folder_id = folder_id
+        self.model = model
+
+    def assist(self, text: str, current: dict) -> dict:
+        import httpx
+
+        schema_keys = ", ".join(f["key"] for f in PROFILE_FIELDS)
+        system = (
+            "Ты дружелюбный помощник сервиса обмена ресурсами. По рассказу человека "
+            "заполни поля профиля и помоги выявить его ресурсы (в т.ч. неочевидные — "
+            "прошлый опыт, смежные навыки). "
+            f"Верни СТРОГО JSON с ключами: {schema_keys}. "
+            "skills и interests — массивы строк, остальные — строки. Не выдумывай факты."
+        )
+        try:
+            resp = httpx.post(
+                "https://llm.api.cloud.yandex.net/foundationModels/v1/completion",
+                headers={"Authorization": f"Api-Key {self.api_key}", "x-folder-id": self.folder_id},
+                json={
+                    "modelUri": f"gpt://{self.folder_id}/{self.model}/latest",
+                    "completionOptions": {"stream": False, "temperature": 0.3, "maxTokens": 1500},
+                    "messages": [
+                        {"role": "system", "text": system},
+                        {"role": "user", "text": f"Текущий профиль: {json.dumps(current, ensure_ascii=False)}\n\nРассказ: {text}"},
+                    ],
+                },
+                timeout=30,
+            )
+            resp.raise_for_status()
+            raw = resp.json()["result"]["alternatives"][0]["message"]["text"]
+            data = json.loads(re.search(r"\{.*\}", raw, re.DOTALL).group(0))
+            draft = dict(current)
+            for f in PROFILE_FIELDS:
+                if data.get(f["key"]):
+                    draft[f["key"]] = data[f["key"]]
+            return {"draft": draft, "questions": _missing_questions(draft), "provider": self.provider}
+        except Exception:
+            return LocalAssistant().assist(text, current)
+
+
 def _missing_questions(draft: dict, limit: int = 3) -> list[dict]:
     """Вопросы по незаполненным полям (кроме «О себе» — оно собирается из рассказа)."""
     questions = []
@@ -143,7 +194,9 @@ def _missing_questions(draft: dict, limit: int = 3) -> list[dict]:
 
 
 def get_assistant():
-    """Выбрать провайдера: реальный Claude при наличии ключа и SDK, иначе офлайн."""
+    """Выбрать провайдера: YandexGPT → Claude → офлайн (по наличию ключей)."""
+    if settings.yandex_api_key and settings.yandex_folder_id:
+        return YandexAssistant(settings.yandex_api_key, settings.yandex_folder_id, settings.yandex_model)
     if settings.anthropic_api_key:
         try:
             return ClaudeAssistant(settings.anthropic_api_key, settings.ai_model)
