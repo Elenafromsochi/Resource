@@ -134,9 +134,6 @@ const wsteps = computed(() => {
   const entryQ = t === 'give'
     ? 'Что из этого ты любишь делать больше всего / что даётся легко?'
     : 'Как поймёшь, что задача решена?'
-  const last = t === 'give'
-    ? { key: 'ideal', kind: 'text', q: 'Кому и в каких условиях этот ресурс идеально подойдёт?' }
-    : { key: 'important', kind: 'multi', q: 'Какие 2 параметра для тебя самые важные?', hint: 'важные весят ×4', options: fields.map(f => ({ key: f.key, label: f.q })) }
   const steps = [
     ...base,
     { key: 'title', kind: 'text', q: titleQ, hint: 'можно голосом' },
@@ -147,7 +144,8 @@ const wsteps = computed(() => {
     q: 'Какую пользу миру, сообществу, человеку или природе принесёт решение этой задачи?',
     hint: 'зачем это в большом смысле' })
   steps.push(...fields.map(f => ({ key: f.key, kind: f.type === 'text' ? 'text' : 'choice', q: f.q, hint: f.hint, options: f.options || [], inFields: true })))
-  steps.push(last)
+  // «Кому идеально» — только у ресурса. Шаг «важные параметры ×4» вернём вместе с мэтчингом.
+  if (t === 'give') steps.push({ key: 'ideal', kind: 'text', q: 'Кому и в каких условиях этот ресурс идеально подойдёт?' })
   return steps
 })
 const cur = computed(() => wsteps.value[wiz.step] || wsteps.value[0])
