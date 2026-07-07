@@ -115,7 +115,7 @@ function catLabel(c) { return CATS[c]?.label || c }
 
 // --- мастер (пошагово, с учётом категории) ---
 const wiz = reactive({ open: false, type: 'give', step: 0, draft: emptyDraft() })
-function emptyDraft() { return { category: '', title: '', entry: '', fields: {}, ideal: '', important: [] } }
+function emptyDraft() { return { category: '', title: '', entry: '', impact: '', fields: {}, ideal: '', important: [] } }
 function startWizard(type, presetTitle = '') {
   wiz.type = type; wiz.step = 0; wiz.draft = emptyDraft()
   if (presetTitle) wiz.draft.title = presetTitle
@@ -133,13 +133,18 @@ const wsteps = computed(() => {
   const last = t === 'give'
     ? { key: 'ideal', kind: 'text', q: 'Кому и в каких условиях этот ресурс идеально подойдёт?' }
     : { key: 'important', kind: 'multi', q: 'Какие 2 параметра для тебя самые важные?', hint: 'важные весят ×4', options: fields.map(f => ({ key: f.key, label: f.q })) }
-  return [
+  const steps = [
     ...base,
     { key: 'title', kind: 'text', q: titleQ, hint: 'можно голосом' },
     { key: 'entry', kind: 'text', q: entryQ },
-    ...fields.map(f => ({ key: f.key, kind: f.type === 'text' ? 'text' : 'choice', q: f.q, hint: f.hint, options: f.options || [], inFields: true })),
-    last,
   ]
+  // Польза (impact) — только у потребности/проекта.
+  if (t === 'ask') steps.push({ key: 'impact', kind: 'text',
+    q: 'Какую пользу миру, сообществу, человеку или природе принесёт решение этой задачи?',
+    hint: 'зачем это в большом смысле' })
+  steps.push(...fields.map(f => ({ key: f.key, kind: f.type === 'text' ? 'text' : 'choice', q: f.q, hint: f.hint, options: f.options || [], inFields: true })))
+  steps.push(last)
+  return steps
 })
 const cur = computed(() => wsteps.value[wiz.step] || wsteps.value[0])
 function curVal() {
@@ -267,6 +272,7 @@ const initial = computed(() => (form.full_name || profile.value?.email || '?').t
           <div class="rlbl ask-l">ПРОШУ · {{ catLabel(r.category) }}</div>
           <div class="rtitle">{{ r.title }}</div>
           <div v-if="r.entry" class="rentry">🎯 {{ r.entry }}</div>
+          <div v-if="r.impact" class="rideal">🌍 {{ r.impact }}</div>
           <div class="rmeta"><span v-for="f in itemFields(r)" :key="f.label">{{ f.label }}: {{ f.value }}</span></div>
           <div v-if="importantLabels(r).length" class="rideal">★ Важно (×4): {{ importantLabels(r).join(', ') }}</div>
         </div>
