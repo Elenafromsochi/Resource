@@ -183,7 +183,21 @@ const gives = computed(() => form.resources.filter(r => r.type === 'give'))
 const asks = computed(() => form.resources.filter(r => r.type === 'ask'))
 function itemFields(r) {
   const cfg = CATS[r.category]?.[r.type] || []
-  return cfg.map(f => ({ label: f.q, value: r.fields?.[f.key] })).filter(x => x.value)
+  return cfg.map(f => ({ key: f.key, label: f.q, value: r.fields?.[f.key] })).filter(x => x.value)
+}
+// Иконки параметров и условий — чтобы карточка читалась «глазами», а не текстом.
+const FIELD_ICON = { level: '🎚', volume: '⏳', when: '📅', urgency: '⏰', where: '📍',
+  condition: '🏷', purpose: '🎯', capacity: '📐', schedule: '🗓', topic: '📚', format: '🎓', channel: '💬' }
+function fieldIcon(k) { return FIELD_ICON[k] || '•' }
+function keyFields(r) { return itemFields(r).filter(f => f.key !== 'terms') }
+function termIcon(v) {
+  const s = (v || '').toLowerCase()
+  if (s.includes('дар') || s.includes('подар')) return '🎁'
+  if (s.includes('обмен')) return '🔄'
+  if (s.includes('балл')) return '⭐'
+  if (s.includes('аренд')) return '📅'
+  if (s.includes('деньг') || s.includes('куп') || s.includes('прод')) return '💰'
+  return '🤝'
 }
 function importantLabels(r) {
   const cfg = CATS[r.category]?.[r.type] || []
@@ -258,11 +272,17 @@ const initial = computed(() => (form.full_name || profile.value?.email || '?').t
         <p v-if="!gives.length" class="empty">Пока пусто. Добавьте, чем готовы поделиться.</p>
         <div v-for="r in gives" :key="r.id" class="rescard give">
           <button class="xbtn" @click="removeItem(r.id)">✕</button>
-          <div class="rlbl">ДАЮ · {{ catLabel(r.category) }}</div>
-          <div class="rtitle">{{ r.title }}</div>
-          <div v-if="r.entry" class="rentry">💛 {{ r.entry }}</div>
-          <div class="rmeta"><span v-for="f in itemFields(r)" :key="f.label">{{ f.label }}: {{ f.value }}</span></div>
-          <div v-if="r.ideal" class="rideal">✨ {{ r.ideal }}</div>
+          <div class="rtop">
+            <span class="cat-ic">{{ CATS[r.category]?.icon }}</span>
+            <div class="rtitle">{{ r.title }}</div>
+            <span class="badge">ДАЮ</span>
+          </div>
+          <div v-if="r.fields?.terms" class="rterms">{{ termIcon(r.fields.terms) }} {{ r.fields.terms }}</div>
+          <div class="rgrid"><span v-for="f in keyFields(r)" :key="f.key">{{ fieldIcon(f.key) }} {{ f.value }}</span></div>
+          <div class="rsec">
+            <div v-if="r.entry">💛 {{ r.entry }}</div>
+            <div v-if="r.ideal">✨ {{ r.ideal }}</div>
+          </div>
         </div>
       </section>
 
@@ -272,12 +292,18 @@ const initial = computed(() => (form.full_name || profile.value?.email || '?').t
         <p v-if="!asks.length" class="empty">Пока пусто. Что вам сейчас нужно?</p>
         <div v-for="r in asks" :key="r.id" class="rescard ask">
           <button class="xbtn" @click="removeItem(r.id)">✕</button>
-          <div class="rlbl ask-l">ПРОШУ · {{ catLabel(r.category) }}</div>
-          <div class="rtitle">{{ r.title }}</div>
-          <div v-if="r.entry" class="rentry">🎯 {{ r.entry }}</div>
-          <div v-if="r.impact" class="rideal">🌍 {{ r.impact }}</div>
-          <div class="rmeta"><span v-for="f in itemFields(r)" :key="f.label">{{ f.label }}: {{ f.value }}</span></div>
-          <div v-if="importantLabels(r).length" class="rideal">★ Важно (×4): {{ importantLabels(r).join(', ') }}</div>
+          <div class="rtop">
+            <span class="cat-ic">{{ CATS[r.category]?.icon }}</span>
+            <div class="rtitle">{{ r.title }}</div>
+            <span class="badge">ПРОШУ</span>
+          </div>
+          <div v-if="r.fields?.terms" class="rterms">{{ termIcon(r.fields.terms) }} {{ r.fields.terms }}</div>
+          <div class="rgrid"><span v-for="f in keyFields(r)" :key="f.key">{{ fieldIcon(f.key) }} {{ f.value }}</span></div>
+          <div class="rsec">
+            <div v-if="r.entry">🎯 {{ r.entry }}</div>
+            <div v-if="r.impact">🌍 {{ r.impact }}</div>
+            <div v-if="importantLabels(r).length">★ Важно (×4): {{ importantLabels(r).join(', ') }}</div>
+          </div>
         </div>
       </section>
 
@@ -365,10 +391,14 @@ h3 { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; margin: 6
 .rescard { position: relative; padding: 14px 14px 12px; margin-top: 10px; }
 .rescard.give { border-left: 3px solid #fff; } .rescard.ask { border-left: 3px dashed rgba(255,255,255,.45); }
 .rlbl { font-size: 10px; letter-spacing: 2px; color: #fff; } .rlbl.ask-l { color: var(--muted); }
-.rtitle { font-size: 17px; margin: 3px 0 6px; }
-.rentry { font-size: 13px; color: var(--cream); opacity: .8; margin-bottom: 6px; }
-.rmeta { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--cream); opacity: .8; }
-.rideal { margin-top: 8px; font-size: 13px; color: var(--muted); }
+.rtop { display: flex; align-items: center; gap: 8px; padding-right: 20px; }
+.cat-ic { font-size: 20px; line-height: 1; }
+.rtitle { font-size: 17px; font-weight: 600; flex: 1; }
+.badge { font-size: 10px; letter-spacing: 1px; border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px; color: var(--muted); white-space: nowrap; }
+.rterms { display: inline-block; margin-top: 10px; border: 1px solid #fff; border-radius: 999px; padding: 4px 12px; font-size: 14px; }
+.rgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin-top: 10px; font-size: 13px; }
+.rsec { margin-top: 10px; font-size: 13px; color: var(--muted); }
+.rsec > div { margin-top: 4px; }
 .xbtn { position: absolute; top: 8px; right: 8px; background: none; border: none; color: var(--muted); font-size: 15px; cursor: pointer; }
 input, textarea { display: block; width: 100%; padding: 11px; margin-top: 8px; background: var(--input); border: 1px solid var(--line); border-radius: 10px; color: var(--cream); font: inherit; }
 input::placeholder, textarea::placeholder { color: #5f5947; }
