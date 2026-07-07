@@ -332,22 +332,20 @@ const initial = computed(() => (form.full_name || profile.value?.email || '?').t
 </template>
 
 <style>
-:root { --bg: #0a0a0c; --panel: #141219; --input: #0e0d12; --gold: #d9b45b; --gold2: #f0d38a;
-  --line: rgba(217,180,91,.22); --cream: #ece3cf; --muted: #8f876f; }
+:root { --bg: #000; --panel: #0c0c0d; --input: #111113; --gold: #fff; --gold2: #fff;
+  --line: rgba(255,255,255,.28); --cream: #fff; --muted: #9a9a9a; }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg);
-  background-image: radial-gradient(1200px 500px at 50% -200px, rgba(217,180,91,.10), transparent 70%);
   color: var(--cream); font-family: system-ui, -apple-system, sans-serif; }
 .app { max-width: 620px; margin: 0 auto; padding: 18px 16px 90px; }
 h3 { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; margin: 6px 0; color: var(--cream); font-size: 21px; }
 .err { background: #2a1414; border: 1px solid #6b2b2b; color: #f2b8b8; padding: 10px 12px; border-radius: 10px; font-size: 14px; }
 .auth { text-align: center; padding-top: 40px; }
-.brand { font-family: Georgia, serif; font-size: 40px; letter-spacing: 1px;
-  background: linear-gradient(180deg, var(--gold2), var(--gold)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.brand { font-family: Georgia, serif; font-size: 40px; letter-spacing: 1px; color: #fff; }
 .tag { color: var(--muted); letter-spacing: 1px; margin-top: 4px; }
 .card, .block, .rescard, .wizard { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; }
 .card { padding: 18px; margin-top: 16px; box-shadow: 0 0 40px rgba(0,0,0,.4); }
-.card.ai { border-color: rgba(217,180,91,.4); background: linear-gradient(180deg, rgba(217,180,91,.06), var(--panel)); }
+.card.ai { border-color: rgba(255,255,255,.5); background: linear-gradient(180deg, rgba(255,255,255,.05), var(--panel)); }
 .lbl { text-transform: uppercase; letter-spacing: 2px; font-size: 11px; color: var(--muted); margin-bottom: 8px; }
 .gold-t { color: var(--gold); }
 .hint { color: var(--muted); font-size: 14px; margin: 6px 0; } .hint.sm { font-size: 12px; }
@@ -365,8 +363,8 @@ h3 { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; margin: 6
 .btitle { font-family: Georgia, serif; font-size: 20px; }
 .empty { color: var(--muted); font-size: 14px; }
 .rescard { position: relative; padding: 14px 14px 12px; margin-top: 10px; }
-.rescard.give { border-left: 3px solid var(--gold); } .rescard.ask { border-left: 3px solid #6f9bd8; }
-.rlbl { font-size: 10px; letter-spacing: 2px; color: var(--gold); } .rlbl.ask-l { color: #8fb4e8; }
+.rescard.give { border-left: 3px solid #fff; } .rescard.ask { border-left: 3px dashed rgba(255,255,255,.45); }
+.rlbl { font-size: 10px; letter-spacing: 2px; color: #fff; } .rlbl.ask-l { color: var(--muted); }
 .rtitle { font-size: 17px; margin: 3px 0 6px; }
 .rentry { font-size: 13px; color: var(--cream); opacity: .8; margin-bottom: 6px; }
 .rmeta { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--cream); opacity: .8; }
@@ -375,7 +373,7 @@ h3 { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; margin: 6
 input, textarea { display: block; width: 100%; padding: 11px; margin-top: 8px; background: var(--input); border: 1px solid var(--line); border-radius: 10px; color: var(--cream); font: inherit; }
 input::placeholder, textarea::placeholder { color: #5f5947; }
 button { cursor: pointer; border-radius: 10px; font: inherit; padding: 10px 16px; margin-top: 10px; }
-.gold { background: linear-gradient(180deg, var(--gold2), var(--gold)); color: #241d09; border: none; font-weight: 600; }
+.gold { background: #fff; color: #000; border: none; font-weight: 600; }
 .gold:disabled { opacity: .4; }
 .ghost { background: transparent; border: 1px solid var(--line); color: var(--cream); }
 .ghost.rec { border-color: #e23; color: #f77; }
