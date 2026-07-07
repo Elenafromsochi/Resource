@@ -47,6 +47,8 @@ class Profile(Base):
     goals: Mapped[str] = mapped_column(Text, default="")  # что ищу / цели
     contacts: Mapped[str] = mapped_column(String, default="")
     answers: Mapped[dict] = mapped_column(JSON, default=dict)  # ответы на вопросы про ресурсы
+    # Список карточек «Даю/Прошу»: у каждой свои поля (условия, время, формат, для кого).
+    resources: Mapped[list] = mapped_column(JSON, default=list)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
 
     user: Mapped["User"] = relationship(back_populates="profile")

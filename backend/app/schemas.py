@@ -32,6 +32,7 @@ class ProfileData(BaseModel):
     goals: str = ""
     contacts: str = ""
     answers: dict = Field(default_factory=dict)
+    resources: list = Field(default_factory=list)  # карточки «Даю/Прошу»
 
 
 class ProfileOut(ProfileData):

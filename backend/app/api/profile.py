@@ -46,6 +46,7 @@ def _to_out(user: User, p: Profile) -> ProfileOut:
         goals=p.goals,
         contacts=p.contacts,
         answers=p.answers or {},
+        resources=p.resources or [],
         completeness=_completeness(p),
     )
 
@@ -71,6 +72,7 @@ def update_profile(
     p.goals = body.goals
     p.contacts = body.contacts
     p.answers = body.answers
+    p.resources = body.resources
     db.add(p)
     db.commit()
     db.refresh(p)
