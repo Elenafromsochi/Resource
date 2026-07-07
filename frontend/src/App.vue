@@ -36,11 +36,13 @@ async function save() {
 }
 
 // --- ИИ-помощник ---
-const story = ref(''); const suggestions = ref([]); const busy = ref(false)
+const story = ref(''); const suggestions = ref([]); const busy = ref(false); const provider = ref('')
+const providerLabel = computed(() => ({ yandex: 'YandexGPT', claude: 'Claude' })[provider.value] || 'офлайн')
 async function runAssist() {
   error.value = ''; busy.value = true
   try {
     const r = await api.assist(story.value)
+    provider.value = r.provider
     for (const k of ['full_name', 'occupation', 'city']) if (r.draft[k]) form[k] = r.draft[k]
     const s = [...(r.draft.skills || []), ...(r.draft.interests || [])]
     if (r.draft.occupation) s.unshift(r.draft.occupation)
@@ -241,6 +243,7 @@ const initial = computed(() => (form.full_name || profile.value?.email || '?').t
         <div class="row">
           <button class="gold" :disabled="busy || !story.trim()" @click="runAssist">{{ busy ? 'Думаю…' : 'Выявить ресурсы' }}</button>
           <button v-if="voiceSupported" class="ghost" :class="{ rec: listeningField === 'story' }" @click="listen('story', appendStory)">🎤 {{ listeningField === 'story' ? 'Слушаю…' : 'Голосом' }}</button>
+          <span v-if="provider" class="prov">через: {{ providerLabel }}</span>
         </div>
         <p v-if="!voiceSupported" class="hint sm">🎤 На iPhone/iPad диктовка — через микрофон на клавиатуре.</p>
         <div v-if="suggestions.length" class="sugs">
@@ -384,6 +387,7 @@ a { color: var(--gold); display: inline-block; margin-top: 12px; font-size: 14px
 .chip.sel { border-color: var(--gold); color: var(--gold); }
 .chip.big { display: block; width: 100%; text-align: left; margin: 8px 0 0; padding: 12px 14px; }
 .sugs { margin-top: 12px; }
+.prov { font-size: 12px; color: var(--muted); align-self: center; }
 .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: grid; place-items: center; padding: 16px; z-index: 10; }
 .wizard { width: 100%; max-width: 460px; padding: 22px; max-height: 92vh; overflow: auto; }
 .dots { display: flex; gap: 5px; margin-bottom: 12px; }
