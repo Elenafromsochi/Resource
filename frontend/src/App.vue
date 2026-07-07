@@ -36,6 +36,8 @@ async function save() {
 }
 
 // --- ИИ-помощник ---
+// Помощник-«выявитель» временно скрыт: вернём позже на YandexGPT, поверх базы Даю/Прошу.
+const showAssistant = false
 const story = ref(''); const suggestions = ref([]); const busy = ref(false); const provider = ref('')
 const providerLabel = computed(() => ({ yandex: 'YandexGPT', claude: 'Claude' })[provider.value] || 'офлайн')
 async function runAssist() {
@@ -249,8 +251,8 @@ const initial = computed(() => (form.full_name || profile.value?.email || '?').t
         </div>
       </header>
 
-      <!-- ИИ-помощник -->
-      <section class="card ai">
+      <!-- ИИ-помощник (временно скрыт) -->
+      <section v-if="showAssistant" class="card ai">
         <div class="lbl gold-t">✦ ИИ-помощник</div>
         <p class="hint">Расскажите, чем занимаетесь и что умеете — помощник поможет выявить ваши ресурсы.</p>
         <textarea v-model="story" rows="3" placeholder="Например: дизайнер, раньше преподавала английский, могу консультировать по маркетингу…"></textarea>
@@ -268,8 +270,8 @@ const initial = computed(() => (form.full_name || profile.value?.email || '?').t
 
       <!-- Даю -->
       <section class="block">
-        <div class="bhead"><span class="btitle">🤝 Даю</span><button class="add" @click="startWizard('give')">+ Добавить</button></div>
-        <p v-if="!gives.length" class="empty">Пока пусто. Добавьте, чем готовы поделиться.</p>
+        <div class="bhead"><span class="btitle">🤝 Даю / Продаю</span><button class="add" @click="startWizard('give')">+ Добавить</button></div>
+        <p v-if="!gives.length" class="empty">Пока пусто. Что готовы дать, обменять или продать?</p>
         <div v-for="r in gives" :key="r.id" class="rescard give">
           <button class="xbtn" @click="removeItem(r.id)">✕</button>
           <div class="rtop">
@@ -288,8 +290,8 @@ const initial = computed(() => (form.full_name || profile.value?.email || '?').t
 
       <!-- Прошу -->
       <section class="block">
-        <div class="bhead"><span class="btitle">🙏 Прошу</span><button class="add" @click="startWizard('ask')">+ Добавить</button></div>
-        <p v-if="!asks.length" class="empty">Пока пусто. Что вам сейчас нужно?</p>
+        <div class="bhead"><span class="btitle">🙏 Прошу / Покупаю</span><button class="add" @click="startWizard('ask')">+ Добавить</button></div>
+        <p v-if="!asks.length" class="empty">Пока пусто. Что вам нужно, ищете или хотите купить?</p>
         <div v-for="r in asks" :key="r.id" class="rescard ask">
           <button class="xbtn" @click="removeItem(r.id)">✕</button>
           <div class="rtop">
