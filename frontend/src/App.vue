@@ -179,6 +179,8 @@ function finishWizard() {
   wiz.open = false; save()
 }
 function removeItem(id) { form.resources = form.resources.filter(r => r.id !== id); save() }
+const expanded = reactive({})
+function toggle(id) { expanded[id] = !expanded[id] }
 const gives = computed(() => form.resources.filter(r => r.type === 'give'))
 const asks = computed(() => form.resources.filter(r => r.type === 'ask'))
 function itemFields(r) {
@@ -270,19 +272,18 @@ const initial = computed(() => (form.full_name || profile.value?.email || '?').t
       <section class="block">
         <div class="bhead"><span class="btitle">🤝 Даю / Продаю</span><button class="add" @click="startWizard('give')">+ Добавить</button></div>
         <p v-if="!gives.length" class="empty">Пока пусто. Что готовы дать, обменять или продать?</p>
-        <div v-for="r in gives" :key="r.id" class="rescard give">
+        <div v-for="r in gives" :key="r.id" class="rescard">
           <button class="xbtn" @click="removeItem(r.id)">✕</button>
-          <div class="rtop">
-            <span class="cat-ic">{{ CATS[r.category]?.icon }}</span>
-            <div class="rtitle">{{ r.title }}</div>
-            <span class="badge">ДАЮ</span>
-          </div>
-          <div v-if="r.fields?.terms" class="rterms">{{ termIcon(r.fields.terms) }} {{ r.fields.terms }}</div>
-          <div class="rgrid"><span v-for="f in keyFields(r)" :key="f.key">{{ fieldIcon(f.key) }} {{ f.value }}</span></div>
-          <div class="rsec">
-            <div v-if="r.entry">💛 {{ r.entry }}</div>
-            <div v-if="r.ideal">✨ {{ r.ideal }}</div>
-          </div>
+          <div class="rk">Даю · {{ catLabel(r.category) }}</div>
+          <div class="rtitle2">{{ CATS[r.category]?.icon }} {{ r.title }}</div>
+          <div class="rk">Условия</div>
+          <div class="rv">{{ termIcon(r.fields?.terms) }} {{ r.fields?.terms || '—' }}</div>
+          <template v-if="expanded[r.id]">
+            <div class="rgrid"><span v-for="f in keyFields(r)" :key="f.key">{{ fieldIcon(f.key) }} {{ f.value }}</span></div>
+            <div v-if="r.entry" class="rsline">💛 {{ r.entry }}</div>
+            <div v-if="r.ideal" class="rsline">✨ {{ r.ideal }}</div>
+          </template>
+          <button class="more" @click="toggle(r.id)">{{ expanded[r.id] ? 'свернуть' : 'подробнее' }}</button>
         </div>
       </section>
 
@@ -290,20 +291,18 @@ const initial = computed(() => (form.full_name || profile.value?.email || '?').t
       <section class="block">
         <div class="bhead"><span class="btitle">🙏 Прошу / Покупаю</span><button class="add" @click="startWizard('ask')">+ Добавить</button></div>
         <p v-if="!asks.length" class="empty">Пока пусто. Что вам нужно, ищете или хотите купить?</p>
-        <div v-for="r in asks" :key="r.id" class="rescard ask">
+        <div v-for="r in asks" :key="r.id" class="rescard">
           <button class="xbtn" @click="removeItem(r.id)">✕</button>
-          <div class="rtop">
-            <span class="cat-ic">{{ CATS[r.category]?.icon }}</span>
-            <div class="rtitle">{{ r.title }}</div>
-            <span class="badge">ПРОШУ</span>
-          </div>
-          <div v-if="r.fields?.terms" class="rterms">{{ termIcon(r.fields.terms) }} {{ r.fields.terms }}</div>
-          <div class="rgrid"><span v-for="f in keyFields(r)" :key="f.key">{{ fieldIcon(f.key) }} {{ f.value }}</span></div>
-          <div class="rsec">
-            <div v-if="r.entry">🎯 {{ r.entry }}</div>
-            <div v-if="r.impact">🌍 {{ r.impact }}</div>
-            <div v-if="importantLabels(r).length">★ Важно (×4): {{ importantLabels(r).join(', ') }}</div>
-          </div>
+          <div class="rk">Прошу · {{ catLabel(r.category) }}</div>
+          <div class="rtitle2">{{ CATS[r.category]?.icon }} {{ r.title }}</div>
+          <div class="rk">Условия</div>
+          <div class="rv">{{ termIcon(r.fields?.terms) }} {{ r.fields?.terms || '—' }}</div>
+          <template v-if="expanded[r.id]">
+            <div class="rgrid"><span v-for="f in keyFields(r)" :key="f.key">{{ fieldIcon(f.key) }} {{ f.value }}</span></div>
+            <div v-if="r.entry" class="rsline">🎯 {{ r.entry }}</div>
+            <div v-if="r.impact" class="rsline">🌍 {{ r.impact }}</div>
+          </template>
+          <button class="more" @click="toggle(r.id)">{{ expanded[r.id] ? 'свернуть' : 'подробнее' }}</button>
         </div>
       </section>
 
@@ -358,20 +357,22 @@ const initial = computed(() => (form.full_name || profile.value?.email || '?').t
 </template>
 
 <style>
-:root { --bg: #000; --panel: #0c0c0d; --input: #111113; --gold: #fff; --gold2: #fff;
-  --line: rgba(255,255,255,.28); --cream: #fff; --muted: #9a9a9a; }
+:root { --bg: #0a0a0c; --panel: #141219; --input: #0e0d12; --gold: #d9b45b; --gold2: #f0d38a;
+  --line: rgba(217,180,91,.28); --cream: #ece3cf; --muted: #8f876f; }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg);
+  background-image: radial-gradient(1200px 500px at 50% -200px, rgba(217,180,91,.10), transparent 70%);
   color: var(--cream); font-family: system-ui, -apple-system, sans-serif; }
 .app { max-width: 620px; margin: 0 auto; padding: 18px 16px 90px; }
 h3 { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; margin: 6px 0; color: var(--cream); font-size: 21px; }
 .err { background: #2a1414; border: 1px solid #6b2b2b; color: #f2b8b8; padding: 10px 12px; border-radius: 10px; font-size: 14px; }
 .auth { text-align: center; padding-top: 40px; }
-.brand { font-family: Georgia, serif; font-size: 40px; letter-spacing: 1px; color: #fff; }
+.brand { font-family: Georgia, serif; font-size: 40px; letter-spacing: 1px;
+  background: linear-gradient(180deg, var(--gold2), var(--gold)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .tag { color: var(--muted); letter-spacing: 1px; margin-top: 4px; }
 .card, .block, .rescard, .wizard { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; }
 .card { padding: 18px; margin-top: 16px; box-shadow: 0 0 40px rgba(0,0,0,.4); }
-.card.ai { border-color: rgba(255,255,255,.5); background: linear-gradient(180deg, rgba(255,255,255,.05), var(--panel)); }
+.card.ai { border-color: rgba(217,180,91,.4); background: linear-gradient(180deg, rgba(217,180,91,.06), var(--panel)); }
 .lbl { text-transform: uppercase; letter-spacing: 2px; font-size: 11px; color: var(--muted); margin-bottom: 8px; }
 .gold-t { color: var(--gold); }
 .hint { color: var(--muted); font-size: 14px; margin: 6px 0; } .hint.sm { font-size: 12px; }
@@ -388,22 +389,20 @@ h3 { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; margin: 6
 .bhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .btitle { font-family: Georgia, serif; font-size: 20px; }
 .empty { color: var(--muted); font-size: 14px; }
-.rescard { position: relative; padding: 14px 14px 12px; margin-top: 10px; }
-.rescard.give { border-left: 3px solid #fff; } .rescard.ask { border-left: 3px dashed rgba(255,255,255,.45); }
-.rlbl { font-size: 10px; letter-spacing: 2px; color: #fff; } .rlbl.ask-l { color: var(--muted); }
-.rtop { display: flex; align-items: center; gap: 8px; padding-right: 20px; }
-.cat-ic { font-size: 20px; line-height: 1; }
-.rtitle { font-size: 17px; font-weight: 600; flex: 1; }
-.badge { font-size: 10px; letter-spacing: 1px; border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px; color: var(--muted); white-space: nowrap; }
-.rterms { display: inline-block; margin-top: 10px; border: 1px solid #fff; border-radius: 999px; padding: 4px 12px; font-size: 14px; }
-.rgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin-top: 10px; font-size: 13px; }
-.rsec { margin-top: 10px; font-size: 13px; color: var(--muted); }
-.rsec > div { margin-top: 4px; }
+.rescard { position: relative; padding: 16px 16px 10px; margin-top: 12px;
+  border: 1px solid rgba(217,180,91,.4); box-shadow: 0 10px 28px rgba(0,0,0,.45); }
+.rk { font-size: 10px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--gold); opacity: .85; margin-top: 14px; }
+.rescard > .rk:first-of-type { margin-top: 0; }
+.rtitle2 { font-size: 17px; color: #fff; margin: 4px 0 2px; }
+.rv { font-size: 16px; color: #fff; margin-top: 2px; }
+.rgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin-top: 14px; font-size: 13px; color: var(--cream); }
+.rsline { margin-top: 8px; font-size: 13px; color: var(--muted); }
+.more { background: none; border: none; color: var(--muted); font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; padding: 10px 0 2px; margin: 0; }
 .xbtn { position: absolute; top: 8px; right: 8px; background: none; border: none; color: var(--muted); font-size: 15px; cursor: pointer; }
 input, textarea { display: block; width: 100%; padding: 11px; margin-top: 8px; background: var(--input); border: 1px solid var(--line); border-radius: 10px; color: var(--cream); font: inherit; }
 input::placeholder, textarea::placeholder { color: #5f5947; }
 button { cursor: pointer; border-radius: 10px; font: inherit; padding: 10px 16px; margin-top: 10px; }
-.gold { background: #fff; color: #000; border: none; font-weight: 600; }
+.gold { background: linear-gradient(180deg, var(--gold2), var(--gold)); color: #241d09; border: none; font-weight: 600; }
 .gold:disabled { opacity: .4; }
 .ghost { background: transparent; border: 1px solid var(--line); color: var(--cream); }
 .ghost.rec { border-color: #e23; color: #f77; }
