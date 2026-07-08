@@ -278,6 +278,7 @@ function pickPhoto() { if (photoInput.value) photoInput.value.click() }
 function onPhoto(e) {
   const file = e.target.files && e.target.files[0]
   if (!file) return
+  if (!file.type.startsWith('image/')) { error.value = 'Для аватара выберите фото (видео пока не поддерживается).'; return }
   const img = new Image()
   img.onload = () => {
     const max = 160, scale = Math.min(1, max / Math.max(img.width, img.height))
