@@ -140,11 +140,20 @@ const CAT_KEYS = Object.keys(CATS)
 function catLabel(c) { return CATS[c]?.label || c }
 
 // --- мастер (пошагово, с учётом категории) ---
-const wiz = reactive({ open: false, type: 'give', step: 0, draft: emptyDraft() })
+const wiz = reactive({ open: false, type: 'give', step: 0, draft: emptyDraft(), editId: null })
 function emptyDraft() { return { category: '', title: '', entry: '', impact: '', fields: {}, ideal: '', term: '', customDate: '' } }
 function startWizard(type, presetTitle = '') {
-  wiz.type = type; wiz.step = 0; wiz.draft = emptyDraft()
+  wiz.type = type; wiz.step = 0; wiz.draft = emptyDraft(); wiz.editId = null
   if (presetTitle) wiz.draft.title = presetTitle
+  wiz.open = true
+}
+function startEdit(r) {
+  wiz.type = r.type; wiz.editId = r.id
+  wiz.draft = {
+    category: r.category || '', title: r.title || '', entry: r.entry || '', impact: r.impact || '',
+    fields: { ...(r.fields || {}) }, ideal: r.ideal || '', term: r.term || '', customDate: r.customDate || '',
+  }
+  wiz.step = r.category ? 1 : 0  // категория уже выбрана — сразу к сути
   wiz.open = true
 }
 const wsteps = computed(() => {
@@ -154,7 +163,7 @@ const wsteps = computed(() => {
   const fields = CATS[wiz.draft.category][t]
   const titleQ = t === 'give' ? 'Опиши в двух словах, что именно' : 'Что именно тебе нужно (в двух словах)'
   const entryQ = t === 'give'
-    ? 'Что из этого ты любишь делать больше всего / что даётся легко?'
+    ? 'Что тебе в этом особенно нравится или что даётся легко?'
     : 'Опишите идеальную картину решения — как всё выглядит, когда задача решена? (можно голосом)'
   const steps = [
     ...base,
@@ -207,10 +216,15 @@ function computeDeadline(d) {
   return x.toISOString().slice(0, 10)
 }
 function finishWizard() {
-  const item = { id: `${Date.now()}${Math.floor(Math.random() * 1000)}`, type: wiz.type, ...JSON.parse(JSON.stringify(wiz.draft)) }
-  if (wiz.type === 'ask') item.deadline = computeDeadline(wiz.draft)
-  form.resources.push(item)
-  wiz.open = false; save()
+  const data = { type: wiz.type, ...JSON.parse(JSON.stringify(wiz.draft)) }
+  if (wiz.type === 'ask') data.deadline = computeDeadline(wiz.draft)
+  if (wiz.editId) {
+    const i = form.resources.findIndex(x => x.id === wiz.editId)
+    if (i >= 0) form.resources[i] = { ...form.resources[i], ...data, id: wiz.editId }
+  } else {
+    form.resources.push({ id: `${Date.now()}${Math.floor(Math.random() * 1000)}`, ...data })
+  }
+  wiz.open = false; wiz.editId = null; save()
 }
 function removeItem(id) { form.resources = form.resources.filter(r => r.id !== id); save() }
 const expanded = reactive({})
@@ -310,11 +324,11 @@ const initial = computed(() => (form.full_name || profile.value?.email || '?').t
 
       <!-- Даю -->
       <section class="block">
-        <div class="bhead"><span class="btitle">🤝 Даю / Продаю</span><button class="add" @click="startWizard('give')">+ Добавить</button></div>
+        <div class="bhead"><span class="btitle">🤝 Ресурсы</span><button class="add" @click="startWizard('give')">+ Добавить</button></div>
         <p v-if="!gives.length" class="empty">Пока пусто. Что готовы дать, обменять или продать?</p>
         <div v-for="r in gives" :key="r.id" class="rescard">
           <button class="xbtn" @click="removeItem(r.id)">✕</button>
-          <div class="rk">Даю · {{ catLabel(r.category) }}</div>
+          <div class="rk">Ресурс · {{ catLabel(r.category) }}</div>
           <div class="rtitle2">{{ CATS[r.category]?.icon }} {{ r.title }}</div>
           <div class="rk">Условия</div>
           <div class="rv">{{ termIcon(r.fields?.terms) }} {{ r.fields?.terms || '—' }}</div>
@@ -323,17 +337,20 @@ const initial = computed(() => (form.full_name || profile.value?.email || '?').t
             <div v-if="r.entry" class="rsline">💛 {{ r.entry }}</div>
             <div v-if="r.ideal" class="rsline">✨ {{ r.ideal }}</div>
           </template>
-          <button class="more" @click="toggle(r.id)">{{ expanded[r.id] ? 'свернуть' : 'подробнее' }}</button>
+          <div class="cardfoot">
+            <button class="more" @click="toggle(r.id)">{{ expanded[r.id] ? 'свернуть' : 'подробнее' }}</button>
+            <button class="more" @click="startEdit(r)">изменить</button>
+          </div>
         </div>
       </section>
 
       <!-- Прошу -->
       <section class="block">
-        <div class="bhead"><span class="btitle">🙏 Прошу / Покупаю</span><button class="add" @click="startWizard('ask')">+ Добавить</button></div>
+        <div class="bhead"><span class="btitle">🙏 Потребности</span><button class="add" @click="startWizard('ask')">+ Добавить</button></div>
         <p v-if="!activeAsks.length" class="empty">Пока пусто. Что вам нужно, ищете или хотите купить?</p>
         <div v-for="r in activeAsks" :key="r.id" class="rescard">
           <button class="xbtn" @click="removeItem(r.id)">✕</button>
-          <div class="rk">Прошу · {{ catLabel(r.category) }}</div>
+          <div class="rk">Потребность · {{ catLabel(r.category) }}</div>
           <div class="rtitle2">{{ CATS[r.category]?.icon }} {{ r.title }}</div>
           <div class="rk">Условия</div>
           <div class="rv">{{ termIcon(r.fields?.terms) }} {{ r.fields?.terms || '—' }}</div>
@@ -346,7 +363,10 @@ const initial = computed(() => (form.full_name || profile.value?.email || '?').t
             <div v-if="r.entry" class="rsline">🎯 {{ r.entry }}</div>
             <div v-if="r.impact" class="rsline">🌍 {{ r.impact }}</div>
           </template>
-          <button class="more" @click="toggle(r.id)">{{ expanded[r.id] ? 'свернуть' : 'подробнее' }}</button>
+          <div class="cardfoot">
+            <button class="more" @click="toggle(r.id)">{{ expanded[r.id] ? 'свернуть' : 'подробнее' }}</button>
+            <button class="more" @click="startEdit(r)">изменить</button>
+          </div>
         </div>
       </section>
 
@@ -356,7 +376,7 @@ const initial = computed(() => (form.full_name || profile.value?.email || '?').t
         <p class="empty">Срок вышел — не в общей ленте, но остаются для будущего мэтча.</p>
         <div v-for="r in archivedAsks" :key="r.id" class="rescard arch">
           <button class="xbtn" @click="removeItem(r.id)">✕</button>
-          <div class="rk">Прошу · {{ catLabel(r.category) }} · архив</div>
+          <div class="rk">Потребность · {{ catLabel(r.category) }} · архив</div>
           <div class="rtitle2">{{ CATS[r.category]?.icon }} {{ r.title }}</div>
         </div>
       </section>
@@ -377,7 +397,7 @@ const initial = computed(() => (form.full_name || profile.value?.email || '?').t
     <div v-if="wiz.open" class="overlay" @click.self="wiz.open = false">
       <div class="wizard">
         <div class="dots"><i v-for="(s, i) in wsteps" :key="i" :class="{ on: i <= wiz.step }" /></div>
-        <div class="wlbl">{{ wiz.type === 'give' ? 'ДАЮ' : 'ПРОШУ' }} · шаг {{ wiz.step + 1 }} из {{ wsteps.length }}</div>
+        <div class="wlbl">{{ wiz.type === 'give' ? 'РЕСУРС' : 'ПОТРЕБНОСТЬ' }} · {{ wiz.editId ? 'правка' : 'шаг ' + (wiz.step + 1) + ' из ' + wsteps.length }}</div>
         <h3>{{ cur.q }}</h3>
         <p v-if="cur.hint" class="hint">{{ cur.hint }}</p>
 
@@ -400,7 +420,7 @@ const initial = computed(() => (form.full_name || profile.value?.email || '?').t
             <button v-for="o in cur.options" :key="o" class="chip" :class="{ sel: curVal() === o }" @click="setCur(o)">{{ o }}</button>
           </div>
           <div class="row">
-            <input :value="curVal()" @input="setCur($event.target.value)" :placeholder="cur.options && cur.options.length ? 'или впишите своё' : 'ваш ответ'" />
+            <textarea class="wiz-text" :value="curVal()" @input="setCur($event.target.value)" rows="2" :placeholder="cur.options && cur.options.length ? 'или впишите своё' : 'ваш ответ'"></textarea>
             <button v-if="voiceSupported" class="ghost mic" :class="{ rec: listeningField === 'wiz' }" @click="listen('wiz', t => setCur((curVal() ? curVal() + ' ' : '') + t))">{{ listeningField === 'wiz' ? '⏹' : '🎤' }}</button>
           </div>
         </template>
@@ -458,6 +478,9 @@ h3 { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; margin: 6
 .rsline { margin-top: 8px; font-size: 13px; color: var(--muted); }
 .more { background: none; border: none; color: var(--muted); font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; padding: 10px 0 2px; margin: 0; }
 .rescard.arch { opacity: .55; }
+.cardfoot { display: flex; gap: 18px; align-items: center; }
+.wiz-text { min-height: 52px; max-height: 40vh; line-height: 1.4; resize: none; field-sizing: content; }
+.row .mic { align-self: flex-start; }
 .xbtn { position: absolute; top: 8px; right: 8px; background: none; border: none; color: var(--muted); font-size: 15px; cursor: pointer; }
 input, textarea { display: block; width: 100%; padding: 11px; margin-top: 8px; background: var(--input); border: 1px solid var(--line); border-radius: 10px; color: var(--cream); font: inherit; }
 input::placeholder, textarea::placeholder { color: #5f5947; }
