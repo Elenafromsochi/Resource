@@ -27,5 +27,6 @@ export const api = {
   getProfile: () => request('GET', '/profile'),
   saveProfile: (b) => request('PUT', '/profile', b),
   assist: (text) => request('POST', '/profile/assist', { text }),
+  extract: (text, kind) => request('POST', '/profile/extract', { text, kind }),
   getQuestions: () => request('GET', '/questions'),
 }

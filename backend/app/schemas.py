@@ -46,6 +46,11 @@ class AssistIn(BaseModel):
     text: str  # свободный рассказ о себе (или ответ на вопрос помощника)
 
 
+class ExtractIn(BaseModel):
+    text: str  # свободный рассказ про ресурс/потребность
+    kind: str = "give"  # give | ask
+
+
 class AssistQuestion(BaseModel):
     field: str
     question: str

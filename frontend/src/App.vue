@@ -149,6 +149,28 @@ function startWizard(type, presetTitle = '') {
   if (presetTitle) wiz.draft.title = presetTitle
   wiz.open = true
 }
+// «Рассказать»: наговорил одним текстом → ИИ разложил по карточке (открывается мастер прифилленным).
+const tell = reactive({ open: false, type: 'give', text: '', busy: false })
+const extractQuestions = ref([])
+const extractProvider = ref('')
+function openTell(type) { tell.type = type; tell.text = ''; tell.open = true; extractQuestions.value = [] }
+async function runExtract() {
+  tell.busy = true; error.value = ''
+  try {
+    const d = await api.extract(tell.text, tell.type)
+    extractProvider.value = d.provider
+    wiz.type = tell.type; wiz.editId = null
+    wiz.draft = {
+      category: d.category || '', title: d.title || '', description: d.description || '',
+      impact: d.impact || '', fields: { ...(d.fields || {}) }, ideal: d.ideal || '',
+      term: '', customDate: '', amount: d.amount || '',
+    }
+    wiz.step = wiz.draft.category ? 1 : 0
+    extractQuestions.value = d.questions || []
+    wiz.open = true; tell.open = false
+  } catch (e) { error.value = e.message } finally { tell.busy = false }
+}
+
 function startEdit(r) {
   wiz.type = r.type; wiz.editId = r.id
   wiz.draft = {
@@ -245,7 +267,7 @@ function finishWizard() {
   } else {
     form.resources.push({ id: `${Date.now()}${Math.floor(Math.random() * 1000)}`, ...data })
   }
-  wiz.open = false; wiz.editId = null; save()
+  wiz.open = false; wiz.editId = null; extractQuestions.value = []; save()
   // Бартер: обмен требует описанных потребностей.
   const barter = termList({ fields: data.fields }).some(x => /обмен|бартер/i.test(x))
   if (barter) {
@@ -355,7 +377,12 @@ function onPhoto(e) {
     <template v-else-if="profile">
       <!-- ВКЛАДКА: РЕСУРСЫ -->
       <section v-if="tab === 'resources'" class="block">
-        <div class="bhead"><span class="btitle">🤝 Ресурсы</span><button class="add" @click="startWizard('give')">+ Добавить</button></div>
+        <div class="bhead"><span class="btitle">🤝 Ресурсы</span>
+          <div class="bactions">
+            <button class="add gold-add" @click="openTell('give')">🎤 Рассказать</button>
+            <button class="add" @click="startWizard('give')">Вручную</button>
+          </div>
+        </div>
         <p v-if="!gives.length" class="empty">Пока пусто. Что готовы дать, обменять или продать?</p>
         <div v-for="r in gives" :key="r.id" class="rescard">
           <button class="xbtn" @click="removeItem(r.id)">✕</button>
@@ -380,7 +407,12 @@ function onPhoto(e) {
       <!-- ВКЛАДКА: ПОТРЕБНОСТИ -->
       <template v-if="tab === 'needs'">
         <section class="block">
-          <div class="bhead"><span class="btitle">🙏 Потребности</span><button class="add" @click="startWizard('ask')">+ Добавить</button></div>
+          <div class="bhead"><span class="btitle">🙏 Потребности</span>
+            <div class="bactions">
+              <button class="add gold-add" @click="openTell('ask')">🎤 Рассказать</button>
+              <button class="add" @click="startWizard('ask')">Вручную</button>
+            </div>
+          </div>
           <p v-if="!activeAsks.length" class="empty">Пока пусто. Что вам нужно, ищете или хотите купить?</p>
           <div v-for="r in activeAsks" :key="r.id" class="rescard">
             <button class="xbtn" @click="removeItem(r.id)">✕</button>
@@ -464,11 +496,29 @@ function onPhoto(e) {
       </nav>
     </template>
 
+    <!-- Рассказать: наговорил всё → ИИ разложит по карточке -->
+    <div v-if="tell.open" class="overlay" @click.self="tell.open = false">
+      <div class="wizard">
+        <div class="wlbl">{{ tell.type === 'give' ? 'РЕСУРС' : 'ПОТРЕБНОСТЬ' }} · расскажите одним текстом</div>
+        <h3>Опишите голосом или текстом — ИИ разложит по карточке</h3>
+        <p class="hint">Наговорите всё сразу: что это, условия, где, для кого, сколько. Мастер откроется уже заполненным — проверите и поправите.</p>
+        <div class="row">
+          <textarea class="wiz-text" v-model="tell.text" rows="4" placeholder="Например: сдаю жильё у моря в Адлере на 3–5 дней, за баллы или деньги 5000 в сутки, вид на горы и море, для женщин и семейных пар…"></textarea>
+          <button v-if="voiceSupported" class="ghost mic" :class="{ rec: listeningField === 'tell' }" @click="listen('tell', t => tell.text = (tell.text ? tell.text + ' ' : '') + t)">{{ listeningField === 'tell' ? '⏹' : '🎤' }}</button>
+        </div>
+        <div class="wnav">
+          <button class="ghost" @click="tell.open = false">Отмена</button>
+          <button class="gold" :disabled="tell.busy || !tell.text.trim()" @click="runExtract">{{ tell.busy ? 'Разбираю…' : 'Разобрать → карточка' }}</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Мастер -->
     <div v-if="wiz.open" class="overlay" @click.self="wiz.open = false">
       <div class="wizard">
         <div class="dots"><i v-for="(s, i) in wsteps" :key="i" :class="{ on: i <= wiz.step }" /></div>
         <div class="wlbl">{{ wiz.type === 'give' ? 'РЕСУРС' : 'ПОТРЕБНОСТЬ' }} · {{ wiz.editId ? 'правка' : 'шаг ' + (wiz.step + 1) + ' из ' + wsteps.length }}</div>
+        <div v-if="extractQuestions.length" class="notice" style="margin: 6px 0 4px">ИИ уточняет: {{ extractQuestions.join(' · ') }}</div>
         <h3>{{ cur.q }}</h3>
         <p v-if="cur.hint" class="hint">{{ cur.hint }}</p>
 
@@ -587,6 +637,8 @@ button { cursor: pointer; border-radius: 10px; font: inherit; padding: 10px 16px
 .ghost { background: transparent; border: 1px solid var(--line); color: var(--cream); }
 .ghost.rec { border-color: #e23; color: #f77; }
 .add { background: transparent; border: 1px solid var(--gold); color: var(--gold); padding: 6px 12px; margin: 0; font-size: 13px; }
+.bactions { display: flex; gap: 8px; flex-wrap: wrap; }
+.gold-add { background: linear-gradient(180deg, var(--gold2), var(--gold)); color: #241d09; border: none; font-weight: 600; }
 .exit { display: block; margin: 20px auto 0; background: none; border: none; color: var(--muted); }
 .row { display: flex; gap: 8px; align-items: center; } .row input { flex: 1; } .row .mic { margin-top: 8px; }
 a { color: var(--gold); display: inline-block; margin-top: 12px; font-size: 14px; }

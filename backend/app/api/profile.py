@@ -8,8 +8,9 @@ from sqlalchemy.orm import Session
 from ..ai import PROFILE_FIELDS, get_assistant
 from ..auth import get_current_user
 from ..db import get_db
+from ..extract import extract_card
 from ..models import Profile, User
-from ..schemas import AssistIn, AssistOut, ProfileData, ProfileOut
+from ..schemas import AssistIn, AssistOut, ExtractIn, ProfileData, ProfileOut
 
 router = APIRouter(prefix="/profile", tags=["profile"])
 
@@ -103,3 +104,9 @@ def assist(
         questions=result["questions"],
         provider=result["provider"],
     )
+
+
+@router.post("/extract")
+def extract(body: ExtractIn, _: User = Depends(get_current_user)) -> dict:
+    """Наговорил всё одним текстом → ИИ раскладывает по полям карточки ресурса/потребности."""
+    return extract_card(body.text, body.kind)
