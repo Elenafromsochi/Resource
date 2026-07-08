@@ -5,7 +5,7 @@ import { api, getToken, setToken } from './api.js'
 const error = ref('')
 const profile = ref(null)
 const loggedIn = ref(!!getToken())
-const tab = ref('resources')  // resources | needs | deals | track | profile
+const tab = ref('resources')  // resources | needs | match | track | profile
 
 // --- вход / регистрация ---
 const auth = reactive({ email: '', password: '', mode: 'login' })
@@ -352,16 +352,16 @@ const initial = computed(() => (form.full_name || profile.value?.email || '?').t
         </section>
       </template>
 
-      <!-- ВКЛАДКА: ПЕРЕГОВОРЫ -->
-      <section v-if="tab === 'deals'" class="block">
-        <div class="bhead"><span class="btitle">💬 Переговоры</span></div>
-        <p class="empty">Здесь появятся сделки: совместный чат с ботами и Человеческий договор. Скоро — вместе с мэтчингом.</p>
+      <!-- ВКЛАДКА: МЭТЧ -->
+      <section v-if="tab === 'match'" class="block">
+        <div class="bhead"><span class="btitle">🔗 Мэтч</span></div>
+        <p class="empty">Здесь появятся совпадения между вашими потребностями и чужими ресурсами. Внутри мэтча — переговоры и договорённость. Оживёт вместе с мэтчингом.</p>
       </section>
 
-      <!-- ВКЛАДКА: ТРЕК -->
+      <!-- ВКЛАДКА: ТРЕК (история сделки после договорённости) -->
       <section v-if="tab === 'track'" class="block">
         <div class="bhead"><span class="btitle">📈 Трек</span></div>
-        <p class="empty">Прогресс проектов: сколько найдено ресурсов, вклад участников (КТУ), связи между проектами. Скоро.</p>
+        <p class="empty">История сделки после договорённости: сопровождение по треку, учёт передачи ресурсов и обратная связь. Здесь же — прогресс «найдено ресурсов» и вклад участников (КТУ). Скоро.</p>
       </section>
 
       <!-- ВКЛАДКА: ПРОФИЛЬ -->
@@ -392,7 +392,7 @@ const initial = computed(() => (form.full_name || profile.value?.email || '?').t
       <nav class="tabbar">
         <button :class="{ on: tab === 'resources' }" @click="tab = 'resources'"><span>🤝</span>Ресурсы</button>
         <button :class="{ on: tab === 'needs' }" @click="tab = 'needs'"><span>🙏</span>Потребности</button>
-        <button :class="{ on: tab === 'deals' }" @click="tab = 'deals'"><span>💬</span>Переговоры</button>
+        <button :class="{ on: tab === 'match' }" @click="tab = 'match'"><span>🔗</span>Мэтч</button>
         <button :class="{ on: tab === 'track' }" @click="tab = 'track'"><span>📈</span>Трек</button>
         <button :class="{ on: tab === 'profile' }" @click="tab = 'profile'"><span>👤</span>Профиль</button>
       </nav>
