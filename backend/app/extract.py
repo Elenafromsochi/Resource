@@ -62,8 +62,8 @@ def _schema_text() -> str:
 
 
 def _empty_draft() -> dict:
-    return {"category": "", "title": "", "description": "", "fields": {}, "amount": "",
-            "ideal": "", "impact": "", "questions": []}
+    return {"category": "", "title": "", "description": "", "fields": {},
+            "amount_money": "", "amount_points": "", "ideal": "", "impact": "", "questions": []}
 
 
 def extract_card(text: str, kind: str) -> dict:
@@ -86,7 +86,7 @@ def _yandex_extract(text: str, kind: str) -> dict:
         "Верни СТРОГО JSON с ключами: category (один из ключей выше), "
         "title (КОРОТКОЕ название существительным, без глагола, напр. «Жильё у моря»), "
         "description (подробное описание своими словами), fields (объект с полями категории; "
-        "terms — массив; where/city — строкой), amount (сколько денег/баллов, если применимо, иначе пусто), "
+        "terms — массив; where/city — строкой), amount_money (сколько денег, если в terms есть «Деньги», иначе пусто), amount_points (сколько баллов, если в terms есть «За баллы», иначе пусто), "
         "ideal (кому идеально подойдёт — для ресурса), impact (какая польза миру/людям — для потребности), "
         "questions (массив 1-3 коротких уточняющих вопросов по важному, чего не хватает). "
         "Не выдумывай факты; если поля нет в рассказе — оставь пустым."
@@ -105,7 +105,7 @@ def _yandex_extract(text: str, kind: str) -> dict:
     raw = resp.json()["result"]["alternatives"][0]["message"]["text"]
     data = json.loads(re.search(r"\{.*\}", raw, re.DOTALL).group(0))
     draft = _empty_draft()
-    for k in ("category", "title", "description", "amount", "ideal", "impact"):
+    for k in ("category", "title", "description", "amount_money", "amount_points", "ideal", "impact"):
         if data.get(k):
             draft[k] = data[k]
     if isinstance(data.get("fields"), dict):

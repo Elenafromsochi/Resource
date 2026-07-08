@@ -143,7 +143,7 @@ function catLabel(c) { return CATS[c]?.label || c }
 
 // --- мастер (пошагово, с учётом категории) ---
 const wiz = reactive({ open: false, type: 'give', step: 0, draft: emptyDraft(), editId: null })
-function emptyDraft() { return { category: '', title: '', description: '', impact: '', fields: {}, ideal: '', term: '', customDate: '', amount: '' } }
+function emptyDraft() { return { category: '', title: '', description: '', impact: '', fields: {}, ideal: '', term: '', customDate: '', amount_money: '', amount_points: '' } }
 function startWizard(type, presetTitle = '') {
   wiz.type = type; wiz.step = 0; wiz.draft = emptyDraft(); wiz.editId = null
   if (presetTitle) wiz.draft.title = presetTitle
@@ -163,7 +163,7 @@ async function runExtract() {
     wiz.draft = {
       category: d.category || '', title: d.title || '', description: d.description || '',
       impact: d.impact || '', fields: { ...(d.fields || {}) }, ideal: d.ideal || '',
-      term: '', customDate: '', amount: d.amount || '',
+      term: '', customDate: '', amount_money: d.amount_money || d.amount || '', amount_points: d.amount_points || '',
     }
     wiz.step = wiz.draft.category ? 1 : 0
     extractQuestions.value = d.questions || []
@@ -175,7 +175,8 @@ function startEdit(r) {
   wiz.type = r.type; wiz.editId = r.id
   wiz.draft = {
     category: r.category || '', title: r.title || '', description: r.description || r.entry || '', impact: r.impact || '',
-    fields: { ...(r.fields || {}) }, ideal: r.ideal || '', term: r.term || '', customDate: r.customDate || '', amount: r.amount || '',
+    fields: { ...(r.fields || {}) }, ideal: r.ideal || '', term: r.term || '', customDate: r.customDate || '',
+    amount_money: r.amount_money || r.amount || '', amount_points: r.amount_points || '',
   }
   wiz.step = r.category ? 1 : 0  // категория уже выбрана — сразу к сути
   wiz.open = true
@@ -198,13 +199,7 @@ const wsteps = computed(() => {
   if (t === 'ask') steps.push({ key: 'impact', kind: 'text',
     q: 'Какую пользу миру, сообществу, человеку или природе принесёт решение этой задачи?',
     hint: 'зачем это в большом смысле' })
-  steps.push(...fields.map(f => ({ key: f.key, kind: f.key === 'terms' ? 'multiterms' : (f.type === 'text' ? 'text' : 'choice'), q: f.q, hint: f.key === 'terms' ? 'можно выбрать несколько' : f.hint, options: f.options || [], inFields: true })))
-  // Если условия — деньги/баллы, спрашиваем сколько.
-  const terms = termList({ fields: wiz.draft.fields })
-  if (terms.some(x => /деньг|куп|прод|балл/i.test(x))) {
-    steps.push({ key: 'amount', kind: 'text', q: 'Сколько денег или баллов за это?',
-      hint: 'напр.: 5000 ₽ / 100 баллов / договорная' })
-  }
+  steps.push(...fields.map(f => ({ key: f.key, kind: f.key === 'terms' ? 'multiterms' : (f.type === 'text' ? 'text' : 'choice'), q: f.q, hint: f.key === 'terms' ? 'можно выбрать несколько; сумма — тут же' : f.hint, options: f.options || [], inFields: true })))
   // «Кому идеально» — только у ресурса.
   if (t === 'give') steps.push({ key: 'ideal', kind: 'text', q: 'Кому и в каких условиях этот ресурс идеально подойдёт?' })
   // Срок жизни потребности.
@@ -243,6 +238,9 @@ function pickOption(o) {
   if (cur.value.key === 'where' && o === 'У меня' && form.city) { setCur('У меня, ' + form.city); return }
   setCur(o)
 }
+// Выбраны ли платные условия — тогда прямо в окне условий спрашиваем сумму.
+const moneySel = computed(() => termList(wiz.draft).some(t => /деньг|куп|прод/i.test(t)))
+const pointsSel = computed(() => termList(wiz.draft).some(t => /балл/i.test(t)))
 const canProceed = computed(() => {
   const s = cur.value
   if (s.kind === 'category') return !!wiz.draft.category
@@ -390,7 +388,7 @@ function onPhoto(e) {
           <div class="rtitle3">{{ CATS[r.category]?.icon }} {{ r.title }}</div>
           <div v-if="r.description" class="rdesc">{{ r.description }}</div>
           <div class="zones">
-            <div class="zone"><span class="zk">Условия</span><span class="zv"><template v-if="termList(r).length"><span v-for="t in termList(r)" :key="t" class="tchip">{{ termIcon(t) }} {{ t }}</span></template><template v-else>—</template><b v-if="r.amount"> · {{ r.amount }}</b></span></div>
+            <div class="zone"><span class="zk">Условия</span><span class="zv"><template v-if="termList(r).length"><span v-for="t in termList(r)" :key="t" class="tchip">{{ termIcon(t) }} {{ t }}</span></template><template v-else>—</template><b v-if="r.amount_money"> · 💰 {{ r.amount_money }}</b><b v-if="r.amount_points"> · ⭐ {{ r.amount_points }} б.</b><b v-if="r.amount"> · {{ r.amount }}</b></span></div>
             <div v-if="r.fields?.where" class="zone"><span class="zk">Где</span><span class="zv">📍 {{ r.fields.where }}</span></div>
             <div v-if="r.ideal" class="zone"><span class="zk">Для кого</span><span class="zv">{{ r.ideal }}</span></div>
           </div>
@@ -420,7 +418,7 @@ function onPhoto(e) {
             <div class="rtitle3">{{ CATS[r.category]?.icon }} {{ r.title }}</div>
             <div v-if="r.description" class="rdesc">{{ r.description }}</div>
             <div class="zones">
-              <div class="zone"><span class="zk">Условия</span><span class="zv"><template v-if="termList(r).length"><span v-for="t in termList(r)" :key="t" class="tchip">{{ termIcon(t) }} {{ t }}</span></template><template v-else>—</template><b v-if="r.amount"> · {{ r.amount }}</b></span></div>
+              <div class="zone"><span class="zk">Условия</span><span class="zv"><template v-if="termList(r).length"><span v-for="t in termList(r)" :key="t" class="tchip">{{ termIcon(t) }} {{ t }}</span></template><template v-else>—</template><b v-if="r.amount_money"> · 💰 {{ r.amount_money }}</b><b v-if="r.amount_points"> · ⭐ {{ r.amount_points }} б.</b><b v-if="r.amount"> · {{ r.amount }}</b></span></div>
               <div v-if="r.fields?.where" class="zone"><span class="zk">Где</span><span class="zv">📍 {{ r.fields.where }}</span></div>
               <div v-if="r.deadline" class="zone"><span class="zk">Срок</span><span class="zv">⏳ до {{ fmtDate(r.deadline) }}</span></div>
               <div v-if="r.impact" class="zone"><span class="zk">Польза</span><span class="zv">🌍 {{ r.impact }}</span></div>
@@ -535,9 +533,13 @@ function onPhoto(e) {
           <input v-if="wiz.draft.term === 'Своя дата'" type="date" v-model="wiz.draft.customDate" />
         </div>
 
-        <!-- условия: можно выбрать несколько -->
-        <div v-else-if="cur.kind === 'multiterms'" class="opts">
-          <button v-for="o in cur.options" :key="o" class="chip" :class="{ sel: termList(wiz.draft).includes(o) }" @click="toggleTerm(o)">{{ o }}</button>
+        <!-- условия: можно выбрать несколько; сумма — тут же -->
+        <div v-else-if="cur.kind === 'multiterms'">
+          <div class="opts">
+            <button v-for="o in cur.options" :key="o" class="chip" :class="{ sel: termList(wiz.draft).includes(o) }" @click="toggleTerm(o)">{{ o }}</button>
+          </div>
+          <input v-if="moneySel" v-model="wiz.draft.amount_money" placeholder="За какие деньги? напр.: 5000 ₽ / договорная" />
+          <input v-if="pointsSel" v-model="wiz.draft.amount_points" placeholder="За сколько баллов? напр.: 200" />
         </div>
 
         <!-- выбор варианта / текст -->
