@@ -146,6 +146,7 @@ const wiz = reactive({ open: false, type: 'give', step: 0, draft: emptyDraft(), 
 function emptyDraft() { return { category: '', title: '', description: '', impact: '', fields: {}, ideal: '', term: '', customDate: '', amount_money: '', amount_points: '' } }
 function startWizard(type, presetTitle = '') {
   wiz.type = type; wiz.step = 0; wiz.draft = emptyDraft(); wiz.editId = null
+  extractQuestions.value = []; extractProvider.value = ''
   if (presetTitle) wiz.draft.title = presetTitle
   wiz.open = true
 }
@@ -265,7 +266,7 @@ function finishWizard() {
   } else {
     form.resources.push({ id: `${Date.now()}${Math.floor(Math.random() * 1000)}`, ...data })
   }
-  wiz.open = false; wiz.editId = null; extractQuestions.value = []; save()
+  wiz.open = false; wiz.editId = null; extractQuestions.value = []; extractProvider.value = ''; save()
   // Бартер: обмен требует описанных потребностей.
   const barter = termList({ fields: data.fields }).some(x => /обмен|бартер/i.test(x))
   if (barter) {
@@ -516,6 +517,7 @@ function onPhoto(e) {
       <div class="wizard">
         <div class="dots"><i v-for="(s, i) in wsteps" :key="i" :class="{ on: i <= wiz.step }" /></div>
         <div class="wlbl">{{ wiz.type === 'give' ? 'РЕСУРС' : 'ПОТРЕБНОСТЬ' }} · {{ wiz.editId ? 'правка' : 'шаг ' + (wiz.step + 1) + ' из ' + wsteps.length }}</div>
+        <div v-if="extractProvider" class="wlbl" style="color: var(--gold); margin-top: 2px">разобрал: {{ extractProvider === 'yandex' ? 'YandexGPT ✓' : 'офлайн (ключ не подхватился)' }}</div>
         <div v-if="extractQuestions.length" class="notice" style="margin: 6px 0 4px">ИИ уточняет: {{ extractQuestions.join(' · ') }}</div>
         <h3>{{ cur.q }}</h3>
         <p v-if="cur.hint" class="hint">{{ cur.hint }}</p>
