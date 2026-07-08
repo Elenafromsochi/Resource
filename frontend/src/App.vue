@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, ref, onMounted, computed } from 'vue'
+import { reactive, ref, onMounted, computed, nextTick, watch } from 'vue'
 import { api, getToken, setToken } from './api.js'
 
 const error = ref('')
@@ -94,13 +94,13 @@ function appendStory(t) { story.value = story.value ? story.value + ' ' + t : t 
 const CATS = {
   time_skill: { label: 'Время / Навык / Услуга', icon: '🛠', give: [
     { key: 'level', q: 'Уровень', options: ['Новичок', 'Уверенный любитель', 'Профи'] },
-    { key: 'volume', q: 'Объём', options: ['Разово 1–2 ч', 'До 10 ч', 'Регулярно'] },
+    { key: 'volume', q: 'Сколько времени / регулярность', options: ['Разово 1–2 ч', '1–2 ч/нед', '3–5 ч/нед', 'Ежедневно по графику', 'По договорённости'] },
     { key: 'when', q: 'Когда', options: ['Будни', 'Выходные', 'Гибко'] },
     { key: 'terms', q: 'Условия', options: ['Дар', 'За баллы', 'Обмен', 'Деньги'] },
     { key: 'where', q: 'Где', options: ['У меня', 'У тебя', 'Онлайн'] },
   ], ask: [
     { key: 'level', q: 'Мин. уровень исполнителя', options: ['Новичок', 'Уверенный любитель', 'Профи'] },
-    { key: 'volume', q: 'Объём', options: ['Разово 1–2 ч', 'До 10 ч', 'Регулярно'] },
+    { key: 'volume', q: 'Сколько времени нужно', options: ['Разово 1–2 ч', '1–2 ч/нед', '3–5 ч/нед', 'Ежедневно', 'По договорённости'] },
     { key: 'urgency', q: 'Срочность', options: ['1–2 дня', 'Неделя', 'Не срочно', 'Регулярно'] },
     { key: 'terms', q: 'Условия', options: ['Приму в дар', 'За баллы', 'Обмен', 'Куплю'] },
     { key: 'where', q: 'Где нужно', options: ['У меня', 'У тебя', 'Онлайн'] },
@@ -175,7 +175,7 @@ const wsteps = computed(() => {
   if (t === 'ask') steps.push({ key: 'impact', kind: 'text',
     q: 'Какую пользу миру, сообществу, человеку или природе принесёт решение этой задачи?',
     hint: 'зачем это в большом смысле' })
-  steps.push(...fields.map(f => ({ key: f.key, kind: f.type === 'text' ? 'text' : 'choice', q: f.q, hint: f.hint, options: f.options || [], inFields: true })))
+  steps.push(...fields.map(f => ({ key: f.key, kind: f.key === 'terms' ? 'multiterms' : (f.type === 'text' ? 'text' : 'choice'), q: f.q, hint: f.key === 'terms' ? 'можно выбрать несколько' : f.hint, options: f.options || [], inFields: true })))
   // «Кому идеально» — только у ресурса. Шаг «важные параметры ×4» вернём вместе с мэтчингом.
   if (t === 'give') steps.push({ key: 'ideal', kind: 'text', q: 'Кому и в каких условиях этот ресурс идеально подойдёт?' })
   // Срок жизни потребности: пока не закрыта — в ленте; вышел срок — в архив.
@@ -197,9 +197,22 @@ function setCur(val) {
   else if (s.inFields) wiz.draft.fields[s.key] = val
   else wiz.draft[s.key] = val
 }
-function toggleImportant(key) {
-  const arr = wiz.draft.important; const i = arr.indexOf(key)
-  if (i >= 0) arr.splice(i, 1); else if (arr.length < 2) arr.push(key)
+function toggleTerm(o) {
+  const cur = wiz.draft.fields.terms
+  const arr = Array.isArray(cur) ? cur.slice() : (cur ? [cur] : [])
+  const i = arr.indexOf(o)
+  if (i >= 0) arr.splice(i, 1); else arr.push(o)
+  wiz.draft.fields.terms = arr
+}
+// Условия могут быть строкой (старые записи) или массивом (новые) — приводим к списку.
+function termList(r) {
+  const t = r.fields?.terms
+  return Array.isArray(t) ? t : (t ? [t] : [])
+}
+// «У меня» подтягивает город из профиля (если он заполнен).
+function pickOption(o) {
+  if (cur.value.key === 'where' && o === 'У меня' && form.city) { setCur('У меня, ' + form.city); return }
+  setCur(o)
 }
 const canProceed = computed(() => {
   const s = cur.value
@@ -272,6 +285,16 @@ const depthLevel = computed(() => {
 })
 const initial = computed(() => (form.full_name || profile.value?.email || '?').trim()[0].toUpperCase())
 
+// Поле мастера растёт под объём текста: сколько строк — столько и высота, видно сразу.
+const wizField = ref(null)
+function autogrow() {
+  const el = wizField.value
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = Math.min(el.scrollHeight, window.innerHeight * 0.5) + 'px'
+}
+watch(() => [wiz.open, wiz.step], () => nextTick(autogrow))
+
 // Фото профиля: выбор файла → уменьшаем до 160px → data URL в профиль.
 const photoInput = ref(null)
 function pickPhoto() { if (photoInput.value) photoInput.value.click() }
@@ -320,12 +343,12 @@ function onPhoto(e) {
           <button class="xbtn" @click="removeItem(r.id)">✕</button>
           <div class="rk">Ресурс · {{ catLabel(r.category) }}</div>
           <div class="rtitle2">{{ CATS[r.category]?.icon }} {{ r.title }}</div>
+          <div v-if="r.entry" class="rdesc">💛 {{ r.entry }}</div>
+          <div v-if="r.ideal" class="rdesc">✨ {{ r.ideal }}</div>
           <div class="rk">Условия</div>
-          <div class="rv">{{ termIcon(r.fields?.terms) }} {{ r.fields?.terms || '—' }}</div>
+          <div class="rv"><template v-if="termList(r).length"><span v-for="t in termList(r)" :key="t" class="tchip">{{ termIcon(t) }} {{ t }}</span></template><template v-else>—</template></div>
           <template v-if="expanded[r.id]">
             <div class="rgrid"><span v-for="f in keyFields(r)" :key="f.key">{{ fieldIcon(f.key) }} {{ f.value }}</span></div>
-            <div v-if="r.entry" class="rsline">💛 {{ r.entry }}</div>
-            <div v-if="r.ideal" class="rsline">✨ {{ r.ideal }}</div>
           </template>
           <div class="cardfoot">
             <button class="more" @click="toggle(r.id)">{{ expanded[r.id] ? 'свернуть' : 'подробнее' }}</button>
@@ -343,16 +366,16 @@ function onPhoto(e) {
             <button class="xbtn" @click="removeItem(r.id)">✕</button>
             <div class="rk">Потребность · {{ catLabel(r.category) }}</div>
             <div class="rtitle2">{{ CATS[r.category]?.icon }} {{ r.title }}</div>
+            <div v-if="r.entry" class="rdesc">🎯 {{ r.entry }}</div>
+            <div v-if="r.impact" class="rdesc">🌍 {{ r.impact }}</div>
             <div class="rk">Условия</div>
-            <div class="rv">{{ termIcon(r.fields?.terms) }} {{ r.fields?.terms || '—' }}</div>
+            <div class="rv"><template v-if="termList(r).length"><span v-for="t in termList(r)" :key="t" class="tchip">{{ termIcon(t) }} {{ t }}</span></template><template v-else>—</template></div>
             <template v-if="r.deadline">
               <div class="rk">Срок</div>
               <div class="rv">⏳ до {{ fmtDate(r.deadline) }}</div>
             </template>
             <template v-if="expanded[r.id]">
               <div class="rgrid"><span v-for="f in keyFields(r)" :key="f.key">{{ fieldIcon(f.key) }} {{ f.value }}</span></div>
-              <div v-if="r.entry" class="rsline">🎯 {{ r.entry }}</div>
-              <div v-if="r.impact" class="rsline">🌍 {{ r.impact }}</div>
             </template>
             <div class="cardfoot">
               <button class="more" @click="toggle(r.id)">{{ expanded[r.id] ? 'свернуть' : 'подробнее' }}</button>
@@ -443,14 +466,19 @@ function onPhoto(e) {
           <input v-if="wiz.draft.term === 'Своя дата'" type="date" v-model="wiz.draft.customDate" />
         </div>
 
+        <!-- условия: можно выбрать несколько -->
+        <div v-else-if="cur.kind === 'multiterms'" class="opts">
+          <button v-for="o in cur.options" :key="o" class="chip" :class="{ sel: termList(wiz.draft).includes(o) }" @click="toggleTerm(o)">{{ o }}</button>
+        </div>
+
         <!-- выбор варианта / текст -->
         <template v-else>
           <div v-if="cur.options && cur.options.length" class="opts">
-            <button v-for="o in cur.options" :key="o" class="chip" :class="{ sel: curVal() === o }" @click="setCur(o)">{{ o }}</button>
+            <button v-for="o in cur.options" :key="o" class="chip" :class="{ sel: curVal() === o }" @click="pickOption(o)">{{ o }}</button>
           </div>
           <div class="row">
-            <textarea class="wiz-text" :value="curVal()" @input="setCur($event.target.value)" rows="2" :placeholder="cur.options && cur.options.length ? 'или впишите своё' : 'ваш ответ'"></textarea>
-            <button v-if="voiceSupported" class="ghost mic" :class="{ rec: listeningField === 'wiz' }" @click="listen('wiz', t => setCur((curVal() ? curVal() + ' ' : '') + t))">{{ listeningField === 'wiz' ? '⏹' : '🎤' }}</button>
+            <textarea ref="wizField" class="wiz-text" :value="curVal()" @input="e => { setCur(e.target.value); autogrow() }" rows="2" :placeholder="cur.options && cur.options.length ? 'или впишите своё' : 'ваш ответ'"></textarea>
+            <button v-if="voiceSupported" class="ghost mic" :class="{ rec: listeningField === 'wiz' }" @click="listen('wiz', t => { setCur((curVal() ? curVal() + ' ' : '') + t); nextTick(autogrow) })">{{ listeningField === 'wiz' ? '⏹' : '🎤' }}</button>
           </div>
         </template>
 
@@ -510,10 +538,12 @@ h3 { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; margin: 6
 .rv { font-size: 16px; color: #fff; margin-top: 2px; }
 .rgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin-top: 14px; font-size: 13px; color: var(--cream); }
 .rsline { margin-top: 8px; font-size: 13px; color: var(--muted); }
+.rdesc { margin-top: 6px; font-size: 14px; color: var(--cream); opacity: .92; white-space: pre-wrap; line-height: 1.45; }
+.tchip { display: inline-block; margin-right: 12px; }
 .more { background: none; border: none; color: var(--muted); font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; padding: 10px 0 2px; margin: 0; }
 .rescard.arch { opacity: .55; }
 .cardfoot { display: flex; gap: 18px; align-items: center; }
-.wiz-text { min-height: 52px; max-height: 40vh; line-height: 1.4; resize: none; field-sizing: content; }
+.wiz-text { min-height: 52px; line-height: 1.4; resize: none; overflow: hidden; }
 .row .mic { align-self: flex-start; }
 .tabbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; width: 100%; max-width: 620px;
   display: flex; background: rgba(10,10,12,.96); border-top: 1px solid var(--line);
