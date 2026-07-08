@@ -21,7 +21,7 @@ function logout() { setToken(null); loggedIn.value = false; profile.value = null
 
 // --- профиль ---
 const form = reactive({
-  full_name: '', occupation: '', city: '', about: '',
+  full_name: '', avatar: '', occupation: '', city: '', about: '',
   skills: [], interests: [], goals: '', contacts: '', answers: {}, resources: [],
 })
 function fill(data) { Object.keys(form).forEach(k => { if (k in data && data[k] != null) form[k] = data[k] }) }
@@ -271,6 +271,28 @@ const depthLevel = computed(() => {
   if (n < 5) return 'Копаем глубже'; return 'Глубоко'
 })
 const initial = computed(() => (form.full_name || profile.value?.email || '?').trim()[0].toUpperCase())
+
+// Фото профиля: выбор файла → уменьшаем до 160px → data URL в профиль.
+const photoInput = ref(null)
+function pickPhoto() { if (photoInput.value) photoInput.value.click() }
+function onPhoto(e) {
+  const file = e.target.files && e.target.files[0]
+  if (!file) return
+  const img = new Image()
+  img.onload = () => {
+    const max = 160, scale = Math.min(1, max / Math.max(img.width, img.height))
+    const c = document.createElement('canvas')
+    c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale)
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height)
+    form.avatar = c.toDataURL('image/jpeg', 0.82)
+    save()
+  }
+  img.src = URL.createObjectURL(file)
+}
+
+// Роли выводятся из данных: есть ресурсы → эксперт; есть потребности → участница.
+const isExpert = computed(() => gives.value.length > 0)
+const isParticipant = computed(() => asks.value.length > 0)
 </script>
 
 <template>
@@ -367,10 +389,18 @@ const initial = computed(() => (form.full_name || profile.value?.email || '?').t
       <!-- ВКЛАДКА: ПРОФИЛЬ -->
       <template v-if="tab === 'profile'">
         <header class="head">
-          <div class="avatar">{{ initial }}</div>
+          <div class="avatar" @click="pickPhoto" title="Изменить фото">
+            <img v-if="form.avatar" :src="form.avatar" alt="" />
+            <span v-else>{{ initial }}</span>
+          </div>
+          <input ref="photoInput" type="file" accept="image/*" @change="onPhoto" style="display:none" />
           <div class="who">
             <div class="name">{{ form.full_name || profile.email }}</div>
-            <div class="sub">глубина раскрытия · {{ depthLevel }}</div>
+            <div class="roles">
+              <span v-if="isParticipant" class="rolebadge">участница</span>
+              <span v-if="isExpert" class="rolebadge exp">эксперт</span>
+              <span v-if="!isParticipant && !isExpert" class="sub">глубина · {{ depthLevel }}</span>
+            </div>
           </div>
           <div class="ring">
             <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" class="rbg" />
@@ -378,6 +408,7 @@ const initial = computed(() => (form.full_name || profile.value?.email || '?').t
             <span>{{ depth }}%</span>
           </div>
         </header>
+        <p class="phint">нажмите на фото, чтобы изменить</p>
         <section class="card">
           <div class="lbl">Обо мне</div>
           <input v-model="form.full_name" placeholder="Имя" />
@@ -461,7 +492,12 @@ h3 { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; margin: 6
 .gold-t { color: var(--gold); }
 .hint { color: var(--muted); font-size: 14px; margin: 6px 0; } .hint.sm { font-size: 12px; }
 .head { display: flex; align-items: center; gap: 14px; padding: 6px 2px 10px; }
-.avatar { width: 54px; height: 54px; border-radius: 50%; border: 1px solid var(--line); display: grid; place-items: center; font-family: Georgia, serif; font-size: 22px; color: var(--gold); }
+.avatar { width: 54px; height: 54px; border-radius: 50%; border: 1px solid var(--line); display: grid; place-items: center; font-family: Georgia, serif; font-size: 22px; color: var(--gold); overflow: hidden; cursor: pointer; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.roles { display: flex; gap: 6px; margin-top: 5px; flex-wrap: wrap; }
+.rolebadge { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; border: 1px solid var(--line); color: var(--muted); border-radius: 6px; padding: 2px 8px; }
+.rolebadge.exp { border-color: var(--gold); color: var(--gold); }
+.phint { text-align: center; color: var(--muted); font-size: 11px; margin: -2px 0 0; }
 .who { flex: 1; } .name { font-family: Georgia, serif; font-size: 19px; }
 .sub { color: var(--gold); font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; }
 .ring { position: relative; width: 60px; height: 60px; }

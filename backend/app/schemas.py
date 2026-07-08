@@ -24,6 +24,7 @@ class TokenOut(BaseModel):
 # --- Профиль / личный кабинет ---
 class ProfileData(BaseModel):
     full_name: str = ""
+    avatar: str = ""
     occupation: str = ""
     city: str = ""
     about: str = ""

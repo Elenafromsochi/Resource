@@ -50,6 +50,7 @@ def _ensure_columns() -> None:
     statements = [
         "ALTER TABLE profiles ADD COLUMN answers JSON",
         "ALTER TABLE profiles ADD COLUMN resources JSON",
+        "ALTER TABLE profiles ADD COLUMN avatar TEXT",
     ]
     for statement in statements:
         try:

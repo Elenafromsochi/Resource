@@ -38,6 +38,7 @@ def _to_out(user: User, p: Profile) -> ProfileOut:
     return ProfileOut(
         email=user.email,
         full_name=p.full_name,
+        avatar=p.avatar or "",
         occupation=p.occupation,
         city=p.city,
         about=p.about,
@@ -64,6 +65,7 @@ def update_profile(
 ) -> ProfileOut:
     p = _ensure_profile(user, db)
     p.full_name = body.full_name
+    p.avatar = body.avatar
     p.occupation = body.occupation
     p.city = body.city
     p.about = body.about

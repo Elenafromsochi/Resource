@@ -39,6 +39,7 @@ class Profile(Base):
 
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), primary_key=True)
     full_name: Mapped[str] = mapped_column(String, default="")
+    avatar: Mapped[str] = mapped_column(Text, default="")  # фото профиля (data URL)
     occupation: Mapped[str] = mapped_column(String, default="")  # род занятий
     city: Mapped[str] = mapped_column(String, default="")
     about: Mapped[str] = mapped_column(Text, default="")  # о себе
