@@ -3,6 +3,7 @@ import { reactive, ref, onMounted, computed, nextTick, watch } from 'vue'
 import { api, getToken, setToken } from './api.js'
 
 const error = ref('')
+const notice = ref('')
 const profile = ref(null)
 const loggedIn = ref(!!getToken())
 const tab = ref('resources')  // resources | needs | match | track | profile
@@ -142,7 +143,7 @@ function catLabel(c) { return CATS[c]?.label || c }
 
 // --- мастер (пошагово, с учётом категории) ---
 const wiz = reactive({ open: false, type: 'give', step: 0, draft: emptyDraft(), editId: null })
-function emptyDraft() { return { category: '', title: '', entry: '', impact: '', fields: {}, ideal: '', term: '', customDate: '' } }
+function emptyDraft() { return { category: '', title: '', description: '', impact: '', fields: {}, ideal: '', term: '', customDate: '', amount: '' } }
 function startWizard(type, presetTitle = '') {
   wiz.type = type; wiz.step = 0; wiz.draft = emptyDraft(); wiz.editId = null
   if (presetTitle) wiz.draft.title = presetTitle
@@ -151,8 +152,8 @@ function startWizard(type, presetTitle = '') {
 function startEdit(r) {
   wiz.type = r.type; wiz.editId = r.id
   wiz.draft = {
-    category: r.category || '', title: r.title || '', entry: r.entry || '', impact: r.impact || '',
-    fields: { ...(r.fields || {}) }, ideal: r.ideal || '', term: r.term || '', customDate: r.customDate || '',
+    category: r.category || '', title: r.title || '', description: r.description || r.entry || '', impact: r.impact || '',
+    fields: { ...(r.fields || {}) }, ideal: r.ideal || '', term: r.term || '', customDate: r.customDate || '', amount: r.amount || '',
   }
   wiz.step = r.category ? 1 : 0  // категория уже выбрана — сразу к сути
   wiz.open = true
@@ -162,23 +163,29 @@ const wsteps = computed(() => {
   const base = [{ key: 'category', kind: 'category', q: 'К какой категории ближе?' }]
   if (!wiz.draft.category) return base
   const fields = CATS[wiz.draft.category][t]
-  const titleQ = t === 'give' ? 'Опиши в двух словах, что именно' : 'Что именно тебе нужно (в двух словах)'
-  const entryQ = t === 'give'
-    ? 'Что тебе в этом особенно нравится или что даётся легко?'
+  const descQ = t === 'give'
+    ? 'Опишите подробнее (можно голосом)'
     : 'Опишите идеальную картину решения — как всё выглядит, когда задача решена? (можно голосом)'
   const steps = [
     ...base,
-    { key: 'title', kind: 'text', q: titleQ, hint: 'можно голосом' },
-    { key: 'entry', kind: 'text', q: entryQ },
+    { key: 'title', kind: 'text', q: 'Короткое название — существительным',
+      hint: 'напр.: «Жильё у моря», «Массаж», «Консультация». Подробности — на след. шаге' },
+    { key: 'description', kind: 'text', q: descQ },
   ]
   // Польза (impact) — только у потребности/проекта.
   if (t === 'ask') steps.push({ key: 'impact', kind: 'text',
     q: 'Какую пользу миру, сообществу, человеку или природе принесёт решение этой задачи?',
     hint: 'зачем это в большом смысле' })
   steps.push(...fields.map(f => ({ key: f.key, kind: f.key === 'terms' ? 'multiterms' : (f.type === 'text' ? 'text' : 'choice'), q: f.q, hint: f.key === 'terms' ? 'можно выбрать несколько' : f.hint, options: f.options || [], inFields: true })))
-  // «Кому идеально» — только у ресурса. Шаг «важные параметры ×4» вернём вместе с мэтчингом.
+  // Если условия — деньги/баллы, спрашиваем сколько.
+  const terms = termList({ fields: wiz.draft.fields })
+  if (terms.some(x => /деньг|куп|прод|балл/i.test(x))) {
+    steps.push({ key: 'amount', kind: 'text', q: 'Сколько денег или баллов за это?',
+      hint: 'напр.: 5000 ₽ / 100 баллов / договорная' })
+  }
+  // «Кому идеально» — только у ресурса.
   if (t === 'give') steps.push({ key: 'ideal', kind: 'text', q: 'Кому и в каких условиях этот ресурс идеально подойдёт?' })
-  // Срок жизни потребности: пока не закрыта — в ленте; вышел срок — в архив.
+  // Срок жизни потребности.
   if (t === 'ask') steps.push({ key: 'term', kind: 'term', q: 'На какой срок эта потребность?',
     options: ['Неделя', '2 недели', 'Месяц', 'Своя дата'] })
   return steps
@@ -239,6 +246,16 @@ function finishWizard() {
     form.resources.push({ id: `${Date.now()}${Math.floor(Math.random() * 1000)}`, ...data })
   }
   wiz.open = false; wiz.editId = null; save()
+  // Бартер: обмен требует описанных потребностей.
+  const barter = termList({ fields: data.fields }).some(x => /обмен|бартер/i.test(x))
+  if (barter) {
+    if (asks.value.length === 0) {
+      notice.value = 'Вы выбрали обмен — опишите, что хотите взамен (свою потребность).'
+      tab.value = 'needs'
+    } else {
+      notice.value = 'Обмен: загляните в «Потребности» — вдруг появились новые.'
+    }
+  }
 }
 function removeItem(id) { form.resources = form.resources.filter(r => r.id !== id); save() }
 const expanded = reactive({})
@@ -259,7 +276,7 @@ function itemFields(r) {
 const FIELD_ICON = { level: '🎚', volume: '⏳', when: '📅', urgency: '⏰', where: '📍',
   condition: '🏷', purpose: '🎯', capacity: '📐', schedule: '🗓', topic: '📚', format: '🎓', channel: '💬' }
 function fieldIcon(k) { return FIELD_ICON[k] || '•' }
-function keyFields(r) { return itemFields(r).filter(f => f.key !== 'terms') }
+function keyFields(r) { return itemFields(r).filter(f => f.key !== 'terms' && f.key !== 'where') }
 function termIcon(v) {
   const s = (v || '').toLowerCase()
   if (s.includes('дар') || s.includes('подар')) return '🎁'
@@ -318,6 +335,7 @@ function onPhoto(e) {
 <template>
   <div class="app">
     <p v-if="error" class="err">{{ error }}</p>
+    <p v-if="notice" class="notice" @click="notice = ''">{{ notice }}</p>
 
     <!-- Вход -->
     <section v-if="!loggedIn" class="auth">
@@ -342,11 +360,13 @@ function onPhoto(e) {
         <div v-for="r in gives" :key="r.id" class="rescard">
           <button class="xbtn" @click="removeItem(r.id)">✕</button>
           <div class="rk">Ресурс · {{ catLabel(r.category) }}</div>
-          <div class="rtitle2">{{ CATS[r.category]?.icon }} {{ r.title }}</div>
-          <div v-if="r.entry" class="rdesc">💛 {{ r.entry }}</div>
-          <div v-if="r.ideal" class="rdesc">✨ {{ r.ideal }}</div>
-          <div class="rk">Условия</div>
-          <div class="rv"><template v-if="termList(r).length"><span v-for="t in termList(r)" :key="t" class="tchip">{{ termIcon(t) }} {{ t }}</span></template><template v-else>—</template></div>
+          <div class="rtitle3">{{ CATS[r.category]?.icon }} {{ r.title }}</div>
+          <div v-if="r.description" class="rdesc">{{ r.description }}</div>
+          <div class="zones">
+            <div class="zone"><span class="zk">Условия</span><span class="zv"><template v-if="termList(r).length"><span v-for="t in termList(r)" :key="t" class="tchip">{{ termIcon(t) }} {{ t }}</span></template><template v-else>—</template><b v-if="r.amount"> · {{ r.amount }}</b></span></div>
+            <div v-if="r.fields?.where" class="zone"><span class="zk">Где</span><span class="zv">📍 {{ r.fields.where }}</span></div>
+            <div v-if="r.ideal" class="zone"><span class="zk">Для кого</span><span class="zv">{{ r.ideal }}</span></div>
+          </div>
           <template v-if="expanded[r.id]">
             <div class="rgrid"><span v-for="f in keyFields(r)" :key="f.key">{{ fieldIcon(f.key) }} {{ f.value }}</span></div>
           </template>
@@ -365,15 +385,14 @@ function onPhoto(e) {
           <div v-for="r in activeAsks" :key="r.id" class="rescard">
             <button class="xbtn" @click="removeItem(r.id)">✕</button>
             <div class="rk">Потребность · {{ catLabel(r.category) }}</div>
-            <div class="rtitle2">{{ CATS[r.category]?.icon }} {{ r.title }}</div>
-            <div v-if="r.entry" class="rdesc">🎯 {{ r.entry }}</div>
-            <div v-if="r.impact" class="rdesc">🌍 {{ r.impact }}</div>
-            <div class="rk">Условия</div>
-            <div class="rv"><template v-if="termList(r).length"><span v-for="t in termList(r)" :key="t" class="tchip">{{ termIcon(t) }} {{ t }}</span></template><template v-else>—</template></div>
-            <template v-if="r.deadline">
-              <div class="rk">Срок</div>
-              <div class="rv">⏳ до {{ fmtDate(r.deadline) }}</div>
-            </template>
+            <div class="rtitle3">{{ CATS[r.category]?.icon }} {{ r.title }}</div>
+            <div v-if="r.description" class="rdesc">{{ r.description }}</div>
+            <div class="zones">
+              <div class="zone"><span class="zk">Условия</span><span class="zv"><template v-if="termList(r).length"><span v-for="t in termList(r)" :key="t" class="tchip">{{ termIcon(t) }} {{ t }}</span></template><template v-else>—</template><b v-if="r.amount"> · {{ r.amount }}</b></span></div>
+              <div v-if="r.fields?.where" class="zone"><span class="zk">Где</span><span class="zv">📍 {{ r.fields.where }}</span></div>
+              <div v-if="r.deadline" class="zone"><span class="zk">Срок</span><span class="zv">⏳ до {{ fmtDate(r.deadline) }}</span></div>
+              <div v-if="r.impact" class="zone"><span class="zk">Польза</span><span class="zv">🌍 {{ r.impact }}</span></div>
+            </div>
             <template v-if="expanded[r.id]">
               <div class="rgrid"><span v-for="f in keyFields(r)" :key="f.key">{{ fieldIcon(f.key) }} {{ f.value }}</span></div>
             </template>
@@ -502,6 +521,7 @@ body { margin: 0; min-height: 100vh;
 .app { max-width: 620px; margin: 0 auto; padding: 18px 16px 90px; }
 h3 { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; margin: 6px 0; color: var(--cream); font-size: 21px; }
 .err { background: #2a1414; border: 1px solid #6b2b2b; color: #f2b8b8; padding: 10px 12px; border-radius: 10px; font-size: 14px; }
+.notice { background: rgba(217,180,91,.12); border: 1px solid var(--line); color: var(--gold); padding: 10px 12px; border-radius: 10px; font-size: 14px; cursor: pointer; }
 .auth { text-align: center; padding-top: 40px; }
 .brand { font-family: Georgia, serif; font-size: 40px; letter-spacing: 1px;
   background: linear-gradient(180deg, var(--gold2), var(--gold)); -webkit-background-clip: text; background-clip: text; color: transparent; }
@@ -535,6 +555,11 @@ h3 { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; margin: 6
 .rk { font-size: 10px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--gold); opacity: .85; margin-top: 14px; }
 .rescard > .rk:first-of-type { margin-top: 0; }
 .rtitle2 { font-size: 17px; color: #fff; margin: 4px 0 2px; }
+.rtitle3 { font-family: Georgia, serif; font-size: 20px; font-weight: 600; color: #fff; margin: 2px 0 6px; line-height: 1.25; }
+.zones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin-top: 12px; }
+.zone { display: flex; flex-direction: column; gap: 2px; }
+.zk { font-size: 9.5px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); opacity: .8; }
+.zv { font-size: 14px; color: var(--cream); }
 .rv { font-size: 16px; color: #fff; margin-top: 2px; }
 .rgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin-top: 14px; font-size: 13px; color: var(--cream); }
 .rsline { margin-top: 8px; font-size: 13px; color: var(--muted); }
