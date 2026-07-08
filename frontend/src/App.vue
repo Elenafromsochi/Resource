@@ -5,6 +5,7 @@ import { api, getToken, setToken } from './api.js'
 const error = ref('')
 const profile = ref(null)
 const loggedIn = ref(!!getToken())
+const tab = ref('resources')  // resources | needs | deals | track | profile
 
 // --- вход / регистрация ---
 const auth = reactive({ email: '', password: '', mode: 'login' })
@@ -292,38 +293,8 @@ const initial = computed(() => (form.full_name || profile.value?.email || '?').t
 
     <!-- Кабинет -->
     <template v-else-if="profile">
-      <header class="head">
-        <div class="avatar">{{ initial }}</div>
-        <div class="who">
-          <div class="name">{{ form.full_name || profile.email }}</div>
-          <div class="sub">глубина раскрытия · {{ depthLevel }}</div>
-        </div>
-        <div class="ring">
-          <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" class="rbg" />
-            <circle cx="60" cy="60" r="52" class="rfg" :stroke-dasharray="ringDash" /></svg>
-          <span>{{ depth }}%</span>
-        </div>
-      </header>
-
-      <!-- ИИ-помощник (временно скрыт) -->
-      <section v-if="showAssistant" class="card ai">
-        <div class="lbl gold-t">✦ ИИ-помощник</div>
-        <p class="hint">Расскажите, чем занимаетесь и что умеете — помощник поможет выявить ваши ресурсы.</p>
-        <textarea v-model="story" rows="3" placeholder="Например: дизайнер, раньше преподавала английский, могу консультировать по маркетингу…"></textarea>
-        <div class="row">
-          <button class="gold" :disabled="busy || !story.trim()" @click="runAssist">{{ busy ? 'Думаю…' : 'Выявить ресурсы' }}</button>
-          <button v-if="voiceSupported" class="ghost" :class="{ rec: listeningField === 'story' }" @click="listen('story', appendStory)">{{ listeningField === 'story' ? '⏹ Стоп' : '🎤 Голосом' }}</button>
-          <span v-if="provider" class="prov">через: {{ providerLabel }}</span>
-        </div>
-        <p v-if="!voiceSupported" class="hint sm">🎤 На iPhone/iPad диктовка — через микрофон на клавиатуре.</p>
-        <div v-if="suggestions.length" class="sugs">
-          <div class="lbl">Похоже, у вас есть ресурсы — добавим?</div>
-          <button v-for="s in suggestions" :key="s" class="chip" @click="startWizard('give', s)">+ {{ s }}</button>
-        </div>
-      </section>
-
-      <!-- Даю -->
-      <section class="block">
+      <!-- ВКЛАДКА: РЕСУРСЫ -->
+      <section v-if="tab === 'resources'" class="block">
         <div class="bhead"><span class="btitle">🤝 Ресурсы</span><button class="add" @click="startWizard('give')">+ Добавить</button></div>
         <p v-if="!gives.length" class="empty">Пока пусто. Что готовы дать, обменять или продать?</p>
         <div v-for="r in gives" :key="r.id" class="rescard">
@@ -344,53 +315,87 @@ const initial = computed(() => (form.full_name || profile.value?.email || '?').t
         </div>
       </section>
 
-      <!-- Прошу -->
-      <section class="block">
-        <div class="bhead"><span class="btitle">🙏 Потребности</span><button class="add" @click="startWizard('ask')">+ Добавить</button></div>
-        <p v-if="!activeAsks.length" class="empty">Пока пусто. Что вам нужно, ищете или хотите купить?</p>
-        <div v-for="r in activeAsks" :key="r.id" class="rescard">
-          <button class="xbtn" @click="removeItem(r.id)">✕</button>
-          <div class="rk">Потребность · {{ catLabel(r.category) }}</div>
-          <div class="rtitle2">{{ CATS[r.category]?.icon }} {{ r.title }}</div>
-          <div class="rk">Условия</div>
-          <div class="rv">{{ termIcon(r.fields?.terms) }} {{ r.fields?.terms || '—' }}</div>
-          <template v-if="r.deadline">
-            <div class="rk">Срок</div>
-            <div class="rv">⏳ до {{ fmtDate(r.deadline) }}</div>
-          </template>
-          <template v-if="expanded[r.id]">
-            <div class="rgrid"><span v-for="f in keyFields(r)" :key="f.key">{{ fieldIcon(f.key) }} {{ f.value }}</span></div>
-            <div v-if="r.entry" class="rsline">🎯 {{ r.entry }}</div>
-            <div v-if="r.impact" class="rsline">🌍 {{ r.impact }}</div>
-          </template>
-          <div class="cardfoot">
-            <button class="more" @click="toggle(r.id)">{{ expanded[r.id] ? 'свернуть' : 'подробнее' }}</button>
-            <button class="more" @click="startEdit(r)">изменить</button>
+      <!-- ВКЛАДКА: ПОТРЕБНОСТИ -->
+      <template v-if="tab === 'needs'">
+        <section class="block">
+          <div class="bhead"><span class="btitle">🙏 Потребности</span><button class="add" @click="startWizard('ask')">+ Добавить</button></div>
+          <p v-if="!activeAsks.length" class="empty">Пока пусто. Что вам нужно, ищете или хотите купить?</p>
+          <div v-for="r in activeAsks" :key="r.id" class="rescard">
+            <button class="xbtn" @click="removeItem(r.id)">✕</button>
+            <div class="rk">Потребность · {{ catLabel(r.category) }}</div>
+            <div class="rtitle2">{{ CATS[r.category]?.icon }} {{ r.title }}</div>
+            <div class="rk">Условия</div>
+            <div class="rv">{{ termIcon(r.fields?.terms) }} {{ r.fields?.terms || '—' }}</div>
+            <template v-if="r.deadline">
+              <div class="rk">Срок</div>
+              <div class="rv">⏳ до {{ fmtDate(r.deadline) }}</div>
+            </template>
+            <template v-if="expanded[r.id]">
+              <div class="rgrid"><span v-for="f in keyFields(r)" :key="f.key">{{ fieldIcon(f.key) }} {{ f.value }}</span></div>
+              <div v-if="r.entry" class="rsline">🎯 {{ r.entry }}</div>
+              <div v-if="r.impact" class="rsline">🌍 {{ r.impact }}</div>
+            </template>
+            <div class="cardfoot">
+              <button class="more" @click="toggle(r.id)">{{ expanded[r.id] ? 'свернуть' : 'подробнее' }}</button>
+              <button class="more" @click="startEdit(r)">изменить</button>
+            </div>
           </div>
-        </div>
+        </section>
+        <section v-if="archivedAsks.length" class="block">
+          <div class="bhead"><span class="btitle">🗄 Архив</span></div>
+          <p class="empty">Срок вышел — не в общей ленте, но остаются для будущего мэтча.</p>
+          <div v-for="r in archivedAsks" :key="r.id" class="rescard arch">
+            <button class="xbtn" @click="removeItem(r.id)">✕</button>
+            <div class="rk">Потребность · {{ catLabel(r.category) }} · архив</div>
+            <div class="rtitle2">{{ CATS[r.category]?.icon }} {{ r.title }}</div>
+          </div>
+        </section>
+      </template>
+
+      <!-- ВКЛАДКА: ПЕРЕГОВОРЫ -->
+      <section v-if="tab === 'deals'" class="block">
+        <div class="bhead"><span class="btitle">💬 Переговоры</span></div>
+        <p class="empty">Здесь появятся сделки: совместный чат с ботами и Человеческий договор. Скоро — вместе с мэтчингом.</p>
       </section>
 
-      <!-- Архив потребностей: срок вышел, но остаются для будущего мэтча -->
-      <section v-if="archivedAsks.length" class="block">
-        <div class="bhead"><span class="btitle">🗄 Архив</span></div>
-        <p class="empty">Срок вышел — не в общей ленте, но остаются для будущего мэтча.</p>
-        <div v-for="r in archivedAsks" :key="r.id" class="rescard arch">
-          <button class="xbtn" @click="removeItem(r.id)">✕</button>
-          <div class="rk">Потребность · {{ catLabel(r.category) }} · архив</div>
-          <div class="rtitle2">{{ CATS[r.category]?.icon }} {{ r.title }}</div>
-        </div>
+      <!-- ВКЛАДКА: ТРЕК -->
+      <section v-if="tab === 'track'" class="block">
+        <div class="bhead"><span class="btitle">📈 Трек</span></div>
+        <p class="empty">Прогресс проектов: сколько найдено ресурсов, вклад участников (КТУ), связи между проектами. Скоро.</p>
       </section>
 
-      <!-- Обо мне -->
-      <section class="card">
-        <div class="lbl">Обо мне</div>
-        <input v-model="form.full_name" placeholder="Имя" />
-        <input v-model="form.city" placeholder="Город (или «удалённо»)" />
-        <input v-model="form.contacts" placeholder="Контакты (@ник, почта)" />
-        <button class="ghost" @click="save">Сохранить</button>
-      </section>
+      <!-- ВКЛАДКА: ПРОФИЛЬ -->
+      <template v-if="tab === 'profile'">
+        <header class="head">
+          <div class="avatar">{{ initial }}</div>
+          <div class="who">
+            <div class="name">{{ form.full_name || profile.email }}</div>
+            <div class="sub">глубина раскрытия · {{ depthLevel }}</div>
+          </div>
+          <div class="ring">
+            <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" class="rbg" />
+              <circle cx="60" cy="60" r="52" class="rfg" :stroke-dasharray="ringDash" /></svg>
+            <span>{{ depth }}%</span>
+          </div>
+        </header>
+        <section class="card">
+          <div class="lbl">Обо мне</div>
+          <input v-model="form.full_name" placeholder="Имя" />
+          <input v-model="form.city" placeholder="Город (или «удалённо»)" />
+          <input v-model="form.contacts" placeholder="Контакты (@ник, почта)" />
+          <button class="ghost" @click="save">Сохранить</button>
+        </section>
+        <button class="exit" @click="logout">Выйти</button>
+      </template>
 
-      <button class="exit" @click="logout">Выйти</button>
+      <!-- Нижняя навигация -->
+      <nav class="tabbar">
+        <button :class="{ on: tab === 'resources' }" @click="tab = 'resources'"><span>🤝</span>Ресурсы</button>
+        <button :class="{ on: tab === 'needs' }" @click="tab = 'needs'"><span>🙏</span>Потребности</button>
+        <button :class="{ on: tab === 'deals' }" @click="tab = 'deals'"><span>💬</span>Переговоры</button>
+        <button :class="{ on: tab === 'track' }" @click="tab = 'track'"><span>📈</span>Трек</button>
+        <button :class="{ on: tab === 'profile' }" @click="tab = 'profile'"><span>👤</span>Профиль</button>
+      </nav>
     </template>
 
     <!-- Мастер -->
@@ -481,6 +486,14 @@ h3 { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; margin: 6
 .cardfoot { display: flex; gap: 18px; align-items: center; }
 .wiz-text { min-height: 52px; max-height: 40vh; line-height: 1.4; resize: none; field-sizing: content; }
 .row .mic { align-self: flex-start; }
+.tabbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; width: 100%; max-width: 620px;
+  display: flex; background: rgba(10,10,12,.96); border-top: 1px solid var(--line);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); z-index: 5; }
+.tabbar button { flex: 1; background: none; border: none; margin: 0; padding: 9px 1px calc(9px + env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--muted); font-size: 9.5px; }
+.tabbar button span { font-size: 18px; opacity: .5; }
+.tabbar button.on { color: var(--gold); }
+.tabbar button.on span { opacity: 1; }
 .xbtn { position: absolute; top: 8px; right: 8px; background: none; border: none; color: var(--muted); font-size: 15px; cursor: pointer; }
 input, textarea { display: block; width: 100%; padding: 11px; margin-top: 8px; background: var(--input); border: 1px solid var(--line); border-radius: 10px; color: var(--cream); font: inherit; }
 input::placeholder, textarea::placeholder { color: #5f5947; }
