@@ -290,10 +290,6 @@ function onPhoto(e) {
   }
   img.src = URL.createObjectURL(file)
 }
-
-// Роли выводятся из данных: есть ресурсы → эксперт; есть потребности → участница.
-const isExpert = computed(() => gives.value.length > 0)
-const isParticipant = computed(() => asks.value.length > 0)
 </script>
 
 <template>
@@ -397,11 +393,7 @@ const isParticipant = computed(() => asks.value.length > 0)
           <input ref="photoInput" type="file" accept="image/*" @change="onPhoto" style="display:none" />
           <div class="who">
             <div class="name">{{ form.full_name || profile.email }}</div>
-            <div class="roles">
-              <span v-if="isParticipant" class="rolebadge">участница</span>
-              <span v-if="isExpert" class="rolebadge exp">эксперт</span>
-              <span v-if="!isParticipant && !isExpert" class="sub">глубина · {{ depthLevel }}</span>
-            </div>
+            <div class="sub">глубина раскрытия · {{ depthLevel }}</div>
           </div>
           <div class="ring">
             <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" class="rbg" />
