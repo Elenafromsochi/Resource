@@ -17,36 +17,26 @@
   <!-- Right circle -->
   <circle cx="352" cy="256" r="110" fill="none" stroke="url(#gold)" stroke-width="5" stroke-opacity=".9"/>
 
-  <!-- Green arrows around circles - flow indicators -->
-  <g stroke="#2dd88c" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <!-- Left circle arrows -->
-    <!-- Top-left arrow -->
-    <path d="M 90 180 L 110 200 M 110 200 L 95 190"/>
-    <!-- Top arrow -->
-    <path d="M 160 130 L 160 155 M 160 155 L 150 140 M 160 155 L 170 140"/>
-    <!-- Top-right arrow -->
-    <path d="M 220 165 L 240 155 M 240 155 L 235 170"/>
-    <!-- Bottom-left arrow -->
-    <path d="M 95 330 L 115 310 M 115 310 L 110 325"/>
-    <!-- Bottom arrow -->
-    <path d="M 160 385 L 160 360 M 160 360 L 150 375 M 160 360 L 170 375"/>
+  <!-- Gold arrows - opposite rotation directions -->
+  <g stroke="url(#gold)" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.85">
+    <!-- LEFT CIRCLE - Clockwise arrows -->
+    <!-- Top (12 o'clock) pointing down-right -->
+    <path d="M 160 135 L 180 160 M 180 160 L 170 152 M 180 160 L 185 170"/>
+    <!-- Right (3 o'clock) pointing down-left -->
+    <path d="M 270 256 L 250 280 M 250 280 L 258 270 M 250 280 L 240 275"/>
+    <!-- Bottom (6 o'clock) pointing up-left -->
+    <path d="M 160 378 L 140 352 M 140 352 L 150 360 M 140 352 L 135 342"/>
+    <!-- Left (9 o'clock) pointing up-right -->
+    <path d="M 50 256 L 75 232 M 75 232 L 67 242 M 75 232 L 82 237"/>
 
-    <!-- Right circle arrows -->
-    <!-- Top arrow -->
-    <path d="M 352 130 L 352 155 M 352 155 L 342 140 M 352 155 L 362 140"/>
-    <!-- Top-right arrow -->
-    <path d="M 422 165 L 442 155 M 442 155 L 437 170"/>
-    <!-- Right arrow -->
-    <path d="M 470 256 L 445 256 M 445 256 L 460 246 M 445 256 L 460 266"/>
-    <!-- Bottom-right arrow -->
-    <path d="M 420 340 L 440 355 M 440 355 L 425 345"/>
-    <!-- Bottom arrow -->
-    <path d="M 352 385 L 352 360 M 352 360 L 342 375 M 352 360 L 362 375"/>
-
-    <!-- Center arrows (between circles) -->
-    <!-- Upper center flow -->
-    <path d="M 256 200 L 256 220 M 256 220 L 246 210 M 256 220 L 266 210"/>
-    <!-- Lower center flow -->
-    <path d="M 256 310 L 256 290 M 256 290 L 246 300 M 256 290 L 266 300"/>
+    <!-- RIGHT CIRCLE - Counter-clockwise arrows -->
+    <!-- Top (12 o'clock) pointing down-left -->
+    <path d="M 352 135 L 330 160 M 330 160 L 342 152 M 330 160 L 327 170"/>
+    <!-- Left (9 o'clock) pointing down-right -->
+    <path d="M 242 256 L 262 280 M 262 280 L 254 270 M 262 280 L 272 275"/>
+    <!-- Bottom (6 o'clock) pointing up-right -->
+    <path d="M 352 378 L 372 352 M 372 352 L 362 360 M 372 352 L 377 342"/>
+    <!-- Right (3 o'clock) pointing up-left -->
+    <path d="M 462 256 L 437 232 M 437 232 L 445 242 M 437 232 L 430 237"/>
   </g>
 </svg>
