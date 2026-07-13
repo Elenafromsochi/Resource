@@ -375,6 +375,7 @@ function onPhoto(e) {
 
     <!-- Вход -->
     <section v-if="!loggedIn" class="auth">
+      <img class="logo" src="/icon.svg" alt="Ресурс" width="96" height="96" />
       <div class="brand">Ресурс</div>
       <p class="tag">синергия ресурсов и потребностей</p>
       <div class="card">
@@ -596,6 +597,7 @@ h3 { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; margin: 6
 .err { background: #2a1414; border: 1px solid #6b2b2b; color: #f2b8b8; padding: 10px 12px; border-radius: 10px; font-size: 14px; }
 .notice { background: rgba(217,180,91,.12); border: 1px solid var(--line); color: var(--gold); padding: 10px 12px; border-radius: 10px; font-size: 14px; cursor: pointer; }
 .auth { text-align: center; padding-top: 40px; }
+.logo { width: 96px; height: 96px; border-radius: 22px; margin-bottom: 6px; }
 .brand { font-family: Georgia, serif; font-size: 40px; letter-spacing: 1px;
   background: linear-gradient(180deg, var(--gold2), var(--gold)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .tag { color: var(--muted); letter-spacing: 1px; margin-top: 4px; }

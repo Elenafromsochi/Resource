@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bg" cx="35%" cy="28%" r="90%">
+      <stop offset="0%" stop-color="#2a2119"/><stop offset="60%" stop-color="#161009"/><stop offset="100%" stop-color="#0b0805"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f6db8e"/><stop offset="45%" stop-color="#dcb75f"/><stop offset="100%" stop-color="#b07f34"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="496" height="496" rx="116" fill="url(#bg)"/>
+  <rect x="10.5" y="10.5" width="491" height="491" rx="114" fill="none" stroke="url(#gold)" stroke-opacity=".55" stroke-width="3"/>
+  <path d="M191.6 96.5 A172 172 0 0 1 312.0 93.4" fill="none" stroke="url(#gold)" stroke-width="9" stroke-linecap="round"/>
+  <path d="M336.1 103.1 L315.8 78.7 L304.5 106.5 Z" fill="url(#gold)"/>
+  <path d="M387.8 145.4 A172 172 0 0 1 428.0 259.0" fill="none" stroke="url(#gold)" stroke-width="9" stroke-linecap="round"/>
+  <path d="M426.2 284.9 L443.1 258.1 L413.1 256.0 Z" fill="url(#gold)"/>
+  <path d="M401.9 347.1 A172 172 0 0 1 306.3 420.5" fill="none" stroke="url(#gold)" stroke-width="9" stroke-linecap="round"/>
+  <path d="M281.1 426.8 L311.9 434.6 L304.6 405.4 Z" fill="url(#gold)"/>
+  <path d="M214.4 422.9 A172 172 0 0 1 115.1 354.7" fill="none" stroke="url(#gold)" stroke-width="9" stroke-linecap="round"/>
+  <path d="M101.3 332.6 L103.4 364.3 L128.9 348.4 Z" fill="url(#gold)"/>
+  <path d="M84.4 268.0 A172 172 0 0 1 118.6 152.5" fill="none" stroke="url(#gold)" stroke-width="9" stroke-linecap="round"/>
+  <path d="M135.3 132.6 L105.9 144.4 L128.8 163.7 Z" fill="url(#gold)"/>
+  <text x="256" y="322" text-anchor="middle" fill="url(#gold)"
+        font-family="Helvetica, Arial, sans-serif" font-size="190" font-weight="300">Р</text>
+</svg>
