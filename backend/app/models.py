@@ -24,7 +24,8 @@ class User(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     email: Mapped[str] = mapped_column(String, unique=True, index=True)
-    password_hash: Mapped[str] = mapped_column(String)
+    password_hash: Mapped[str] = mapped_column(String, default="")  # пусто у входа через Яндекс
+    yandex_id: Mapped[str | None] = mapped_column(String, index=True, nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
     profile: Mapped["Profile"] = relationship(

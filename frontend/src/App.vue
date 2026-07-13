@@ -1,12 +1,13 @@
 <script setup>
 import { reactive, ref, onMounted, computed, nextTick, watch } from 'vue'
-import { api, getToken, setToken } from './api.js'
+import { api, getToken, setToken, yandexLoginUrl } from './api.js'
 
 const error = ref('')
 const notice = ref('')
 const profile = ref(null)
 const loggedIn = ref(!!getToken())
 const tab = ref('resources')  // resources | needs | match | track | profile
+const yandexLogin = ref(false)  // показывать ли кнопку «Войти через Яндекс»
 
 // --- вход / регистрация ---
 const auth = reactive({ email: '', password: '', mode: 'login' })
@@ -18,7 +19,17 @@ async function submitAuth() {
     setToken(access_token); loggedIn.value = true; await loadProfile()
   } catch (e) { error.value = e.message }
 }
+function loginWithYandex() { window.location.href = yandexLoginUrl }
 function logout() { setToken(null); loggedIn.value = false; profile.value = null }
+
+// Возврат после входа через Яндекс: токен (или ошибка) приходит в адресе.
+function pickUpOAuthResult() {
+  const p = new URLSearchParams(window.location.search)
+  const token = p.get('token'); const authError = p.get('auth_error')
+  if (token) { setToken(token); loggedIn.value = true }
+  if (authError) error.value = 'Не удалось войти через Яндекс. Попробуйте ещё раз или войдите по почте.'
+  if (token || authError) window.history.replaceState({}, '', window.location.pathname)
+}
 
 // --- профиль ---
 const form = reactive({
@@ -30,7 +41,11 @@ async function loadProfile() {
   try { profile.value = await api.getProfile(); fill(profile.value) }
   catch (e) { logout(); error.value = 'Пожалуйста, войдите снова.' }
 }
-onMounted(() => { if (loggedIn.value) loadProfile() })
+onMounted(async () => {
+  pickUpOAuthResult()
+  try { yandexLogin.value = (await api.getConfig()).yandex_login } catch { /* не критично */ }
+  if (loggedIn.value) loadProfile()
+})
 async function save() {
   error.value = ''
   try { profile.value = await api.saveProfile({ ...form }); fill(profile.value) }
@@ -363,6 +378,10 @@ function onPhoto(e) {
       <div class="brand">Ресурс</div>
       <p class="tag">синергия ресурсов и потребностей</p>
       <div class="card">
+        <button v-if="yandexLogin" class="ya" @click="loginWithYandex">
+          <span class="ya-ic">Я</span> Войти через Яндекс
+        </button>
+        <div v-if="yandexLogin" class="or"><span>или по почте</span></div>
         <div class="lbl">{{ auth.mode === 'register' ? 'Регистрация' : 'Вход' }}</div>
         <input v-model="auth.email" type="email" placeholder="Email" />
         <input v-model="auth.password" type="password" placeholder="Пароль (от 6 символов)" />
@@ -584,6 +603,13 @@ h3 { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; margin: 6
 .card { padding: 18px; margin-top: 16px; box-shadow: 0 0 40px rgba(0,0,0,.4); }
 .card.ai { border-color: rgba(217,180,91,.4); background: linear-gradient(180deg, rgba(217,180,91,.06), var(--panel)); }
 .lbl { text-transform: uppercase; letter-spacing: 2px; font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+.ya { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;
+  background: #fff; color: #1a1a1a; border: none; border-radius: 12px; padding: 13px;
+  font-size: 16px; font-weight: 600; cursor: pointer; }
+.ya-ic { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px;
+  background: #fc3f1d; color: #fff; font-family: Georgia, serif; font-weight: 700; font-size: 17px; }
+.or { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; margin: 14px 0; }
+.or::before, .or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
 .gold-t { color: var(--gold); }
 .hint { color: var(--muted); font-size: 14px; margin: 6px 0; } .hint.sm { font-size: 12px; }
 .head { display: flex; align-items: center; gap: 14px; padding: 6px 2px 10px; }

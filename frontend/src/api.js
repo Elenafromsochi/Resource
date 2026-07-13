@@ -3,6 +3,9 @@
 // undefined (локальная разработка) = отдельный бэкенд на :8000.
 const BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 
+// Адрес перехода на вход через Яндекс (кнопка ведёт браузер сюда напрямую).
+export const yandexLoginUrl = `${BASE}/api/auth/yandex/login`
+
 export function getToken() { return localStorage.getItem('token') }
 export function setToken(t) { t ? localStorage.setItem('token', t) : localStorage.removeItem('token') }
 
@@ -29,4 +32,5 @@ export const api = {
   assist: (text) => request('POST', '/profile/assist', { text }),
   extract: (text, kind) => request('POST', '/profile/extract', { text, kind }),
   getQuestions: () => request('GET', '/questions'),
+  getConfig: () => request('GET', '/config'),
 }
