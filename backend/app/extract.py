@@ -25,6 +25,7 @@ CARD_CATS = {
             "when": ["Будни", "Выходные", "Гибко"],
             "where": ["У меня", "У тебя", "Онлайн"],
         },
+        "critical": ["level", "volume", "where"],
     },
     "thing": {
         "label": "Вещь / Товар",
@@ -32,6 +33,7 @@ CARD_CATS = {
             "condition": ["Новое", "Б/у как новое", "Отличное", "Хорошее", "С дефектами", "На ремонт"],
             "where": "строка (город/район)",
         },
+        "critical": ["condition", "where"],
     },
     "space": {
         "label": "Пространство / Место",
@@ -40,6 +42,7 @@ CARD_CATS = {
             "capacity": "строка (площадь/вместимость)",
             "schedule": ["Разово", "Регулярно", "Длительно", "Навсегда"],
         },
+        "critical": ["capacity", "schedule"],
     },
     "knowledge": {
         "label": "Знание / Опыт",
@@ -48,9 +51,23 @@ CARD_CATS = {
             "format": ["Краткий ответ", "Консультация до 60 мин", "Менторство", "Записанные уроки"],
             "channel": ["Текст", "Видео", "Встреча", "Телефон"],
         },
+        "critical": ["topic", "format"],
     },
 }
 TERMS = ["Дар", "За баллы", "Обмен", "Аренда", "Деньги"]
+
+# Вопросы-подсказки для критичных полей
+_FIELD_QUESTIONS = {
+    "level": "Какой уровень expertise? (Новичок / Любитель / Профи)",
+    "volume": "Сколько времени/регулярность? (разово / регулярно / длительно)",
+    "where": "Где это происходит? (У меня / У тебя / Онлайн)",
+    "condition": "Какое состояние? (Новое / Б/у как новое / Отличное / Хорошее / С дефектами)",
+    "capacity": "Размер/площадь/вместимость? (точные цифры)",
+    "schedule": "График использования? (Разово / Регулярно / Длительно / Навсегда)",
+    "topic": "Сфера/тема знания?",
+    "format": "Формат? (Ответ / Консультация / Менторство / Уроки)",
+    "purpose": "Назначение? (Хранение / Работа / Мероприятие / Проживание)",
+}
 
 
 def _schema_text() -> str:
@@ -64,6 +81,25 @@ def _schema_text() -> str:
 def _empty_draft() -> dict:
     return {"category": "", "title": "", "description": "", "fields": {},
             "amount_money": "", "amount_points": "", "ideal": "", "impact": "", "questions": []}
+
+
+def _analyze_missing_fields(draft: dict) -> list[str]:
+    """Выявить пустые критичные поля и сгенерировать вопросы."""
+    if not draft.get("category") or draft["category"] not in CARD_CATS:
+        return []
+
+    cat_info = CARD_CATS[draft["category"]]
+    critical = cat_info.get("critical", [])
+    questions = []
+
+    for field in critical:
+        val = draft.get("fields", {}).get(field, "")
+        # Проверяем, пусто ли поле (или пустой список)
+        if not val or (isinstance(val, list) and len(val) == 0):
+            q = _FIELD_QUESTIONS.get(field, f"Уточните {field}?")
+            questions.append(q)
+
+    return questions[:3]  # Макс 3 вопроса
 
 
 def extract_card(text: str, kind: str) -> dict:
@@ -110,8 +146,11 @@ def _yandex_extract(text: str, kind: str) -> dict:
             draft[k] = data[k]
     if isinstance(data.get("fields"), dict):
         draft["fields"] = data["fields"]
-    if isinstance(data.get("questions"), list):
+    # Если ИИ вернул вопросы — используем их; если нет — анализируем критичные поля
+    if isinstance(data.get("questions"), list) and data["questions"]:
         draft["questions"] = [str(q) for q in data["questions"]][:3]
+    else:
+        draft["questions"] = _analyze_missing_fields(draft)
     draft["provider"] = "yandex"
     return draft
 
@@ -142,7 +181,7 @@ def _offline_extract(text: str, kind: str) -> dict:
         terms.append("Дар")
     if terms:
         draft["fields"]["terms"] = terms
-    draft["questions"] = ["Уточните условия (дар / обмен / за баллы / деньги)?",
-                          "Где это происходит?"]
+    # Анализируем критичные поля и генерируем вопросы
+    draft["questions"] = _analyze_missing_fields(draft)
     draft["provider"] = "local"
     return draft
