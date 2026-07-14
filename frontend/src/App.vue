@@ -169,6 +169,7 @@ function startWizard(type, presetTitle = '') {
 const tell = reactive({ open: false, type: 'give', text: '', photo: null, busy: false })
 const extractQuestions = ref([])
 const extractProvider = ref('')
+const clarification = reactive({ open: false, questionPairs: [], answers: {}, busy: false, currentDraft: null })
 function openTell(type) { tell.type = type; tell.text = ''; tell.photo = null; tell.open = true; extractQuestions.value = [] }
 function handlePhotoUpload(e) { const file = e.target.files?.[0]; if (file) { const r = new FileReader(); r.onload = ev => tell.photo = ev.target.result; r.readAsDataURL(file) } }
 async function runExtract() {
@@ -184,8 +185,34 @@ async function runExtract() {
     }
     wiz.step = wiz.draft.category ? 1 : 0
     extractQuestions.value = d.questions || []
-    wiz.open = true; tell.open = false
+
+    // Если есть уточняющие вопросы — показываем их отдельно перед мастером
+    if (d.questions && d.questions.length > 0 && d.questions_map) {
+      // Строим пары (field, question) из questions_map
+      clarification.questionPairs = Object.entries(d.questions_map).map(([field, question]) => ({ field, question }))
+      clarification.answers = {}
+      clarification.currentDraft = { ...wiz.draft, questions_map: d.questions_map || {}, provider: extractProvider.value }
+      clarification.open = true
+      tell.open = false
+    } else {
+      wiz.open = true; tell.open = false
+    }
   } catch (e) { error.value = e.message } finally { tell.busy = false }
+}
+async function submitClarifications() {
+  clarification.busy = true; error.value = ''
+  try {
+    const updated = await api.clarify(clarification.currentDraft, clarification.answers)
+    // Обновляем черновик с уточнениями
+    wiz.draft = {
+      category: updated.category || '', title: updated.title || '', description: updated.description || '',
+      impact: updated.impact || '', fields: { ...(updated.fields || {}) }, ideal: updated.ideal || '',
+      term: '', customDate: '', amount_money: updated.amount_money || '', amount_points: updated.amount_points || '',
+    }
+    extractQuestions.value = updated.questions || []
+    clarification.open = false
+    wiz.open = true
+  } catch (e) { error.value = e.message } finally { clarification.busy = false }
 }
 
 function startEdit(r) {
@@ -547,6 +574,24 @@ function onPhoto(e) {
       </div>
     </div>
 
+    <!-- Уточнение критичных полей карточки -->
+    <div v-if="clarification.open" class="overlay" @click.self="clarification.open = false">
+      <div class="wizard">
+        <div class="wlbl">Уточнение информации</div>
+        <h3>ИИ хочет уточнить кое-что важное</h3>
+        <div class="clarifications">
+          <div v-for="(pair, idx) in clarification.questionPairs" :key="idx" class="clarification-item">
+            <label>{{ pair.question }}</label>
+            <input v-model="clarification.answers[pair.field]" type="text" :placeholder="`Ответ ${idx + 1}`" />
+          </div>
+        </div>
+        <div class="wnav">
+          <button class="ghost" @click="clarification.open = false">Пропустить</button>
+          <button class="gold" :disabled="clarification.busy || !Object.values(clarification.answers).some(a => a)" @click="submitClarifications">{{ clarification.busy ? 'Обновляю…' : 'Готово' }}</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Мастер -->
     <div v-if="wiz.open" class="overlay" @click.self="wiz.open = false">
       <div class="wizard">
@@ -706,4 +751,8 @@ a { color: var(--gold); display: inline-block; margin-top: 12px; font-size: 14px
 .photo-preview { position: relative; margin: 12px 0; }
 .photo-preview img { max-width: 100%; max-height: 200px; border-radius: 8px; }
 .photo-preview button { position: absolute; top: 4px; right: 4px; padding: 4px 8px; font-size: 12px; }
+.clarifications { margin: 12px 0; display: flex; flex-direction: column; gap: 12px; }
+.clarification-item { display: flex; flex-direction: column; gap: 4px; }
+.clarification-item label { font-size: 13px; color: var(--gold); font-weight: 500; }
+.clarification-item input { margin-top: 4px; }
 </style>

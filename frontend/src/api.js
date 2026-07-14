@@ -31,6 +31,7 @@ export const api = {
   saveProfile: (b) => request('PUT', '/profile', b),
   assist: (text) => request('POST', '/profile/assist', { text }),
   extract: (text, kind) => request('POST', '/profile/extract', { text, kind }),
+  clarify: (draft, clarifications) => request('POST', '/profile/clarify', { draft, clarifications }),
   getQuestions: () => request('GET', '/questions'),
   getConfig: () => request('GET', '/config'),
 }

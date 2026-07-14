@@ -80,17 +80,22 @@ def _schema_text() -> str:
 
 def _empty_draft() -> dict:
     return {"category": "", "title": "", "description": "", "fields": {},
-            "amount_money": "", "amount_points": "", "ideal": "", "impact": "", "questions": []}
+            "amount_money": "", "amount_points": "", "ideal": "", "impact": "", "questions": [], "questions_map": {}}
 
 
-def _analyze_missing_fields(draft: dict) -> list[str]:
-    """Выявить пустые критичные поля и сгенерировать вопросы."""
+def _analyze_missing_fields(draft: dict) -> tuple[list[str], dict]:
+    """Выявить пустые критичные поля и сгенерировать вопросы.
+
+    Returns:
+        (questions_list, questions_map) где questions_map маппирует field_name -> question_text
+    """
     if not draft.get("category") or draft["category"] not in CARD_CATS:
-        return []
+        return [], {}
 
     cat_info = CARD_CATS[draft["category"]]
     critical = cat_info.get("critical", [])
     questions = []
+    questions_map = {}
 
     for field in critical:
         val = draft.get("fields", {}).get(field, "")
@@ -98,8 +103,9 @@ def _analyze_missing_fields(draft: dict) -> list[str]:
         if not val or (isinstance(val, list) and len(val) == 0):
             q = _FIELD_QUESTIONS.get(field, f"Уточните {field}?")
             questions.append(q)
+            questions_map[field] = q
 
-    return questions[:3]  # Макс 3 вопроса
+    return questions[:3], {k: questions_map[k] for k in list(questions_map.keys())[:3]}
 
 
 def apply_clarifications(draft: dict, clarifications: dict) -> dict:
@@ -125,7 +131,9 @@ def apply_clarifications(draft: dict, clarifications: dict) -> dict:
             updated["fields"][key] = value
 
     # Пересчитываем вопросы - может быть, теперь все критичные поля заполнены
-    updated["questions"] = _analyze_missing_fields(updated)
+    questions, questions_map = _analyze_missing_fields(updated)
+    updated["questions"] = questions
+    updated["questions_map"] = questions_map
 
     return updated
 
@@ -177,8 +185,11 @@ def _yandex_extract(text: str, kind: str) -> dict:
     # Если ИИ вернул вопросы — используем их; если нет — анализируем критичные поля
     if isinstance(data.get("questions"), list) and data["questions"]:
         draft["questions"] = [str(q) for q in data["questions"]][:3]
+        draft["questions_map"] = {}
     else:
-        draft["questions"] = _analyze_missing_fields(draft)
+        questions, questions_map = _analyze_missing_fields(draft)
+        draft["questions"] = questions
+        draft["questions_map"] = questions_map
     draft["provider"] = "yandex"
     return draft
 
@@ -210,6 +221,8 @@ def _offline_extract(text: str, kind: str) -> dict:
     if terms:
         draft["fields"]["terms"] = terms
     # Анализируем критичные поля и генерируем вопросы
-    draft["questions"] = _analyze_missing_fields(draft)
+    questions, questions_map = _analyze_missing_fields(draft)
+    draft["questions"] = questions
+    draft["questions_map"] = questions_map
     draft["provider"] = "local"
     return draft

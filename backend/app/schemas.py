@@ -74,6 +74,7 @@ class CardDraft(BaseModel):
     ideal: str = ""
     impact: str = ""
     questions: list[str] = Field(default_factory=list)
+    questions_map: dict = Field(default_factory=dict)  # field_name -> question_text
     provider: str = ""
 
 
