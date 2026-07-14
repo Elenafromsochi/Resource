@@ -8,9 +8,9 @@ from sqlalchemy.orm import Session
 from ..ai import PROFILE_FIELDS, get_assistant
 from ..auth import get_current_user
 from ..db import get_db
-from ..extract import extract_card
+from ..extract import apply_clarifications, extract_card
 from ..models import Profile, User
-from ..schemas import AssistIn, AssistOut, ExtractIn, ProfileData, ProfileOut
+from ..schemas import AssistIn, AssistOut, CardDraft, ClarificationsIn, ExtractIn, ProfileData, ProfileOut
 
 router = APIRouter(prefix="/profile", tags=["profile"])
 
@@ -110,3 +110,14 @@ def assist(
 def extract(body: ExtractIn, _: User = Depends(get_current_user)) -> dict:
     """Наговорил всё одним текстом → ИИ раскладывает по полям карточки ресурса/потребности."""
     return extract_card(body.text, body.kind)
+
+
+@router.post("/clarify", response_model=CardDraft)
+def clarify(body: ClarificationsIn, _: User = Depends(get_current_user)) -> CardDraft:
+    """Применить ответы на уточняющие вопросы к черновику карточки.
+
+    Возвращает обновленный черновик с заполненными полями и, возможно, меньшим количеством вопросов.
+    """
+    draft_dict = body.draft.model_dump()
+    updated = apply_clarifications(draft_dict, body.clarifications)
+    return CardDraft(**updated)

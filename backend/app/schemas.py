@@ -61,3 +61,22 @@ class AssistOut(BaseModel):
     draft: ProfileData  # предложенные ИИ значения полей (черновик, редактируемый)
     questions: list[AssistQuestion] = Field(default_factory=list)
     provider: str  # "claude" | "local"
+
+
+# --- Карточка ресурса/потребности ---
+class CardDraft(BaseModel):
+    category: str = ""
+    title: str = ""
+    description: str = ""
+    fields: dict = Field(default_factory=dict)
+    amount_money: str = ""
+    amount_points: str = ""
+    ideal: str = ""
+    impact: str = ""
+    questions: list[str] = Field(default_factory=list)
+    provider: str = ""
+
+
+class ClarificationsIn(BaseModel):
+    draft: CardDraft  # черновик карточки
+    clarifications: dict  # ответы на уточняющие вопросы: {field_name: answer}

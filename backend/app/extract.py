@@ -102,6 +102,34 @@ def _analyze_missing_fields(draft: dict) -> list[str]:
     return questions[:3]  # Макс 3 вопроса
 
 
+def apply_clarifications(draft: dict, clarifications: dict) -> dict:
+    """Применить ответы пользователя на уточняющие вопросы к карточке.
+
+    Args:
+        draft: исходная карточка с пустыми полями
+        clarifications: {'level': 'Профи', 'where': 'У меня', ...}
+
+    Returns:
+        обновленная карточка
+    """
+    if not clarifications:
+        return draft
+
+    updated = {**draft}
+    if "fields" not in updated:
+        updated["fields"] = {}
+
+    # Перебираем ответы и добавляем их в правильные поля
+    for key, value in clarifications.items():
+        if key in _FIELD_QUESTIONS and value:  # Проверяем, что это известное поле
+            updated["fields"][key] = value
+
+    # Пересчитываем вопросы - может быть, теперь все критичные поля заполнены
+    updated["questions"] = _analyze_missing_fields(updated)
+
+    return updated
+
+
 def extract_card(text: str, kind: str) -> dict:
     if settings.yandex_api_key and settings.yandex_folder_id:
         try:
