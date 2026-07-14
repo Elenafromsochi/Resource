@@ -166,10 +166,11 @@ function startWizard(type, presetTitle = '') {
   wiz.open = true
 }
 // «Рассказать»: наговорил одним текстом → ИИ разложил по карточке (открывается мастер прифилленным).
-const tell = reactive({ open: false, type: 'give', text: '', busy: false })
+const tell = reactive({ open: false, type: 'give', text: '', photo: null, busy: false })
 const extractQuestions = ref([])
 const extractProvider = ref('')
-function openTell(type) { tell.type = type; tell.text = ''; tell.open = true; extractQuestions.value = [] }
+function openTell(type) { tell.type = type; tell.text = ''; tell.photo = null; tell.open = true; extractQuestions.value = [] }
+function handlePhotoUpload(e) { const file = e.target.files?.[0]; if (file) { const r = new FileReader(); r.onload = ev => tell.photo = ev.target.result; r.readAsDataURL(file) } }
 async function runExtract() {
   tell.busy = true; error.value = ''
   try {
@@ -519,10 +520,24 @@ function onPhoto(e) {
     <div v-if="tell.open" class="overlay" @click.self="tell.open = false">
       <div class="wizard">
         <div class="wlbl">{{ tell.type === 'give' ? 'РЕСУРС' : 'ПОТРЕБНОСТЬ' }} · расскажите одним текстом</div>
-        <h3>Опишите голосом или текстом — ИИ разложит по карточке</h3>
-        <p class="hint">Наговорите всё сразу: что это, условия, где, для кого, сколько. Мастер откроется уже заполненным — проверите и поправите.</p>
+        <h3>Расскажи, что ты предлагаешь (или ищешь)</h3>
+        <p class="hint">Главное — опиши так, чтобы человек сразу понял, можно ли это ему использовать. Что это, где, сколько человек, какие условия — всё можно наговорить разом. Если чего-то важного не хватит, мы спросим.</p>
+
+        <div class="tell-photo">
+          <div v-if="!tell.photo" class="photo-placeholder">
+            <input type="file" accept="image/*" @change="handlePhotoUpload" style="display: none" ref="photoInput" />
+            <button class="ghost" @click="$refs.photoInput?.$el?.click?.() || document.querySelector('input[type=file]')?.click?.()">
+              📷 Добавить фото
+            </button>
+          </div>
+          <div v-else class="photo-preview">
+            <img :src="tell.photo" />
+            <button class="ghost" @click="tell.photo = null">✕ Удалить</button>
+          </div>
+        </div>
+
         <div class="row">
-          <textarea class="wiz-text" v-model="tell.text" rows="4" placeholder="Например: сдаю жильё у моря в Адлере на 3–5 дней, за баллы или деньги 5000 в сутки, вид на горы и море, для женщин и семейных пар…"></textarea>
+          <textarea class="wiz-text" v-model="tell.text" rows="4" placeholder="Например: крыша с видом на горы, подходит для йоги и обедов, вмещает до 10 человек. Или: я провожу хатха-йогу, опыт 5 лет, работаю с начинающими…"></textarea>
           <button v-if="voiceSupported" class="ghost mic" :class="{ rec: listeningField === 'tell' }" @click="listen('tell', t => tell.text = (tell.text ? tell.text + ' ' : '') + t)">{{ listeningField === 'tell' ? '⏹' : '🎤' }}</button>
         </div>
         <div class="wnav">
@@ -686,4 +701,9 @@ a { color: var(--gold); display: inline-block; margin-top: 12px; font-size: 14px
 .wlbl { font-size: 11px; letter-spacing: 2px; color: var(--muted); }
 .opts { margin: 6px 0; }
 .wnav { display: flex; justify-content: space-between; margin-top: 14px; }
+.tell-photo { margin: 12px 0; }
+.photo-placeholder { text-align: center; padding: 12px; background: rgba(255,215,0,.05); border-radius: 8px; }
+.photo-preview { position: relative; margin: 12px 0; }
+.photo-preview img { max-width: 100%; max-height: 200px; border-radius: 8px; }
+.photo-preview button { position: absolute; top: 4px; right: 4px; padding: 4px 8px; font-size: 12px; }
 </style>
