@@ -158,7 +158,7 @@ function catLabel(c) { return CATS[c]?.label || c }
 
 // --- мастер (пошагово, с учётом категории) ---
 const wiz = reactive({ open: false, type: 'give', step: 0, draft: emptyDraft(), editId: null })
-function emptyDraft() { return { category: '', title: '', description: '', impact: '', fields: {}, ideal: '', term: '', customDate: '', amount_money: '', amount_points: '' } }
+function emptyDraft() { return { category: '', title: '', description: '', impact: '', fields: {}, ideal: '', term: '', customDate: '', amount_money: '', amount_points: '', photo: '' } }
 function startWizard(type, presetTitle = '') {
   wiz.type = type; wiz.step = 0; wiz.draft = emptyDraft(); wiz.editId = null
   extractQuestions.value = []; extractProvider.value = ''
@@ -182,6 +182,7 @@ async function runExtract() {
       category: d.category || '', title: d.title || '', description: d.description || '',
       impact: d.impact || '', fields: { ...(d.fields || {}) }, ideal: d.ideal || '',
       term: '', customDate: '', amount_money: d.amount_money || d.amount || '', amount_points: d.amount_points || '',
+      photo: tell.photo || '',
     }
     wiz.step = wiz.draft.category ? 1 : 0
     extractQuestions.value = d.questions || []
@@ -220,7 +221,7 @@ function startEdit(r) {
   wiz.draft = {
     category: r.category || '', title: r.title || '', description: r.description || r.entry || '', impact: r.impact || '',
     fields: { ...(r.fields || {}) }, ideal: r.ideal || '', term: r.term || '', customDate: r.customDate || '',
-    amount_money: r.amount_money || r.amount || '', amount_points: r.amount_points || '',
+    amount_money: r.amount_money || r.amount || '', amount_points: r.amount_points || '', photo: r.photo || '',
   }
   wiz.step = r.category ? 1 : 0  // категория уже выбрана — сразу к сути
   wiz.open = true
@@ -433,20 +434,23 @@ function onPhoto(e) {
         <p v-if="!gives.length" class="empty">Пока пусто. Что готовы дать, обменять или продать?</p>
         <div v-for="r in gives" :key="r.id" class="rescard">
           <button class="xbtn" @click="removeItem(r.id)">✕</button>
-          <div class="rk">Ресурс · {{ catLabel(r.category) }}</div>
-          <div class="rtitle3">{{ CATS[r.category]?.icon }} {{ r.title }}</div>
-          <div v-if="r.description" class="rdesc">{{ r.description }}</div>
-          <div class="zones">
-            <div class="zone"><span class="zk">Условия</span><span class="zv"><template v-if="termList(r).length"><span v-for="t in termList(r)" :key="t" class="tchip">{{ termIcon(t) }} {{ t }}</span></template><template v-else>—</template><b v-if="r.amount_money"> · 💰 {{ r.amount_money }}</b><b v-if="r.amount_points"> · ⭐ {{ r.amount_points }} б.</b><b v-if="r.amount"> · {{ r.amount }}</b></span></div>
-            <div v-if="r.fields?.where" class="zone"><span class="zk">Где</span><span class="zv">📍 {{ r.fields.where }}</span></div>
-            <div v-if="r.ideal" class="zone"><span class="zk">Для кого</span><span class="zv">{{ r.ideal }}</span></div>
+          <div v-if="r.photo" class="rc-photo"><img :src="r.photo" /></div>
+          <div class="rc-head">
+            <div class="rc-cat">{{ CATS[r.category]?.icon }}</div>
+            <div class="rc-title">{{ r.title }}</div>
           </div>
+          <div class="rc-params">
+            <div v-if="r.fields?.where" class="rc-param">📍 {{ r.fields.where }}</div>
+            <div v-if="termList(r).length" class="rc-param"><span v-for="t in termList(r)" :key="t">{{ termIcon(t) }} {{ t }}</span></div>
+            <div v-if="r.ideal" class="rc-param">👤 {{ r.ideal }}</div>
+          </div>
+          <div v-if="r.description" class="rc-desc">{{ r.description }}</div>
           <template v-if="expanded[r.id]">
-            <div class="rgrid"><span v-for="f in keyFields(r)" :key="f.key">{{ fieldIcon(f.key) }} {{ f.value }}</span></div>
+            <div class="rc-fields"><span v-for="f in keyFields(r)" :key="f.key">{{ fieldIcon(f.key) }} {{ f.value }}</span></div>
           </template>
-          <div class="cardfoot">
-            <button class="more" @click="toggle(r.id)">{{ expanded[r.id] ? 'свернуть' : 'подробнее' }}</button>
-            <button class="more" @click="startEdit(r)">изменить</button>
+          <div class="rc-foot">
+            <button class="more" @click="toggle(r.id)">{{ expanded[r.id] ? '▲ свернуть' : '▼ подробнее' }}</button>
+            <button class="more" @click="startEdit(r)">✎ изменить</button>
           </div>
         </div>
       </section>
@@ -463,21 +467,24 @@ function onPhoto(e) {
           <p v-if="!activeAsks.length" class="empty">Пока пусто. Что вам нужно, ищете или хотите купить?</p>
           <div v-for="r in activeAsks" :key="r.id" class="rescard">
             <button class="xbtn" @click="removeItem(r.id)">✕</button>
-            <div class="rk">Потребность · {{ catLabel(r.category) }}</div>
-            <div class="rtitle3">{{ CATS[r.category]?.icon }} {{ r.title }}</div>
-            <div v-if="r.description" class="rdesc">{{ r.description }}</div>
-            <div class="zones">
-              <div class="zone"><span class="zk">Условия</span><span class="zv"><template v-if="termList(r).length"><span v-for="t in termList(r)" :key="t" class="tchip">{{ termIcon(t) }} {{ t }}</span></template><template v-else>—</template><b v-if="r.amount_money"> · 💰 {{ r.amount_money }}</b><b v-if="r.amount_points"> · ⭐ {{ r.amount_points }} б.</b><b v-if="r.amount"> · {{ r.amount }}</b></span></div>
-              <div v-if="r.fields?.where" class="zone"><span class="zk">Где</span><span class="zv">📍 {{ r.fields.where }}</span></div>
-              <div v-if="r.deadline" class="zone"><span class="zk">Срок</span><span class="zv">⏳ до {{ fmtDate(r.deadline) }}</span></div>
-              <div v-if="r.impact" class="zone"><span class="zk">Польза</span><span class="zv">🌍 {{ r.impact }}</span></div>
+            <div v-if="r.photo" class="rc-photo"><img :src="r.photo" /></div>
+            <div class="rc-head">
+              <div class="rc-cat">{{ CATS[r.category]?.icon }}</div>
+              <div class="rc-title">{{ r.title }}</div>
             </div>
+            <div class="rc-params">
+              <div v-if="r.fields?.where" class="rc-param">📍 {{ r.fields.where }}</div>
+              <div v-if="r.deadline" class="rc-param">⏳ до {{ fmtDate(r.deadline) }}</div>
+              <div v-if="termList(r).length" class="rc-param"><span v-for="t in termList(r)" :key="t">{{ termIcon(t) }} {{ t }}</span></div>
+            </div>
+            <div v-if="r.description" class="rc-desc">{{ r.description }}</div>
+            <div v-if="r.impact" class="rc-impact">🌍 {{ r.impact }}</div>
             <template v-if="expanded[r.id]">
-              <div class="rgrid"><span v-for="f in keyFields(r)" :key="f.key">{{ fieldIcon(f.key) }} {{ f.value }}</span></div>
+              <div class="rc-fields"><span v-for="f in keyFields(r)" :key="f.key">{{ fieldIcon(f.key) }} {{ f.value }}</span></div>
             </template>
-            <div class="cardfoot">
-              <button class="more" @click="toggle(r.id)">{{ expanded[r.id] ? 'свернуть' : 'подробнее' }}</button>
-              <button class="more" @click="startEdit(r)">изменить</button>
+            <div class="rc-foot">
+              <button class="more" @click="toggle(r.id)">{{ expanded[r.id] ? '▲ свернуть' : '▼ подробнее' }}</button>
+              <button class="more" @click="startEdit(r)">✎ изменить</button>
             </div>
           </div>
         </section>
@@ -486,8 +493,14 @@ function onPhoto(e) {
           <p class="empty">Срок вышел — не в общей ленте, но остаются для будущего мэтча.</p>
           <div v-for="r in archivedAsks" :key="r.id" class="rescard arch">
             <button class="xbtn" @click="removeItem(r.id)">✕</button>
-            <div class="rk">Потребность · {{ catLabel(r.category) }} · архив</div>
-            <div class="rtitle2">{{ CATS[r.category]?.icon }} {{ r.title }}</div>
+            <div v-if="r.photo" class="rc-photo"><img :src="r.photo" /></div>
+            <div class="rc-head">
+              <div class="rc-cat">{{ CATS[r.category]?.icon }}</div>
+              <div class="rc-title">{{ r.title }}</div>
+            </div>
+            <div class="rc-params">
+              <div v-if="r.deadline" class="rc-param">⏳ до {{ fmtDate(r.deadline) }}</div>
+            </div>
           </div>
         </section>
       </template>
@@ -692,8 +705,28 @@ h3 { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; margin: 6
 .bhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .btitle { font-family: Georgia, serif; font-size: 20px; }
 .empty { color: var(--muted); font-size: 14px; }
-.rescard { position: relative; padding: 16px 16px 10px; margin-top: 12px;
-  border: 1px solid rgba(217,180,91,.4); box-shadow: 0 10px 28px rgba(0,0,0,.45); }
+.rescard { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; margin-top: 12px; }
+.rc-photo { width: 100%; height: 200px; overflow: hidden; background: rgba(255,255,255,.05); display: block; }
+.rc-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rescard > .xbtn { z-index: 2; position: absolute; top: 8px; right: 8px; }
+.rescard > .rc-photo ~ * { padding: 0 16px; }
+.rescard > .rc-photo ~ .rc-head { padding-top: 14px; }
+.rescard > *:not(.rc-photo):not(.xbtn) { padding: 0 16px; }
+.rescard > .rc-foot { padding-bottom: 10px; }
+.rc-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+.rc-cat { font-size: 28px; line-height: 1; }
+.rc-title { font-size: 18px; font-weight: 600; color: var(--cream); flex: 1; }
+.rc-params { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; font-size: 13px; }
+.rc-param { background: rgba(217,180,91,.08); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; color: var(--cream); display: inline-flex; gap: 4px; }
+.rc-param span { display: inline; margin-right: 4px; }
+.rc-desc { font-size: 13px; color: var(--cream); opacity: .85; line-height: 1.4; margin: 6px 0; white-space: pre-wrap; }
+.rc-impact { font-size: 13px; color: var(--gold); margin: 4px 0; font-weight: 500; }
+.rc-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; font-size: 12px; color: var(--cream); }
+.rc-fields span { background: rgba(217,180,91,.08); padding: 6px 8px; border-radius: 6px; display: block; }
+.rc-foot { display: flex; gap: 12px; margin-top: 8px; }
+.more { background: none; border: none; color: var(--muted); font-size: 11px; letter-spacing: 1px; padding: 6px 0; margin: 0; cursor: pointer; }
+.more:hover { color: var(--gold); }
+.rescard.arch { opacity: .65; }
 .rk { font-size: 10px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--gold); opacity: .85; margin-top: 14px; }
 .rescard > .rk:first-of-type { margin-top: 0; }
 .rtitle2 { font-size: 17px; color: #fff; margin: 4px 0 2px; }
@@ -707,8 +740,6 @@ h3 { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; margin: 6
 .rsline { margin-top: 8px; font-size: 13px; color: var(--muted); }
 .rdesc { margin-top: 6px; font-size: 14px; color: var(--cream); opacity: .92; white-space: pre-wrap; line-height: 1.45; }
 .tchip { display: inline-block; margin-right: 12px; }
-.more { background: none; border: none; color: var(--muted); font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; padding: 10px 0 2px; margin: 0; }
-.rescard.arch { opacity: .55; }
 .cardfoot { display: flex; gap: 18px; align-items: center; }
 .wiz-text { min-height: 52px; line-height: 1.4; resize: none; overflow: hidden; }
 .row .mic { align-self: flex-start; }
