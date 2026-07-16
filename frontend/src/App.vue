@@ -708,7 +708,7 @@ h3 { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; margin: 6
 .brand { font-family: Georgia, serif; font-size: 40px; letter-spacing: 1px;
   background: linear-gradient(180deg, var(--gold2), var(--gold)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .tag { color: var(--muted); letter-spacing: 1px; margin-top: 4px; }
-.card, .block, .rescard, .wizard { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; }
+.card, .block, .wizard { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; }
 .card { padding: 18px; margin-top: 16px; box-shadow: 0 0 40px rgba(0,0,0,.4); }
 .card.ai { border-color: rgba(217,180,91,.4); background: linear-gradient(180deg, rgba(217,180,91,.06), var(--panel)); }
 .lbl { text-transform: uppercase; letter-spacing: 2px; font-size: 11px; color: var(--muted); margin-bottom: 8px; }
