@@ -708,7 +708,8 @@ h3 { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; margin: 6
 .brand { font-family: Georgia, serif; font-size: 40px; letter-spacing: 1px;
   background: linear-gradient(180deg, var(--gold2), var(--gold)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .tag { color: var(--muted); letter-spacing: 1px; margin-top: 4px; }
-.card, .block, .wizard { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; }
+.card, .block { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; }
+.wizard { background: var(--panel); border: 2px solid rgba(217,180,91,.5); border-radius: 18px; }
 .card { padding: 18px; margin-top: 16px; box-shadow: 0 0 40px rgba(0,0,0,.4); }
 .card.ai { border-color: rgba(217,180,91,.4); background: linear-gradient(180deg, rgba(217,180,91,.06), var(--panel)); }
 .lbl { text-transform: uppercase; letter-spacing: 2px; font-size: 11px; color: var(--muted); margin-bottom: 8px; }
@@ -740,7 +741,7 @@ h3 { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; margin: 6
 .btitle { font-family: Georgia, serif; font-size: 20px; }
 .empty { color: var(--muted); font-size: 14px; }
 .infographic-card { position: relative; padding: 18px; margin-top: 12px;
-  border: 2px solid rgba(217,180,91,.35); border-radius: 16px;
+  border: 2px solid rgba(217,180,91,.65); border-radius: 16px;
   background: linear-gradient(135deg, rgba(217,180,91,.08), rgba(217,180,91,.03));
   box-shadow: 0 8px 24px rgba(0,0,0,.5); }
 .infographic-card.archived { opacity: .5; }
@@ -751,7 +752,7 @@ h3 { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; margin: 6
 .card-desc { font-size: 13px; color: var(--cream); opacity: .85; line-height: 1.4; white-space: pre-wrap; }
 .card-params { margin: 12px 0; }
 .param-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
-.param { display: flex; align-items: center; gap: 8px; padding: 8px; background: rgba(217,180,91,.05); border-radius: 8px; border: 1px solid rgba(217,180,91,.15); }
+.param { display: flex; align-items: center; gap: 8px; padding: 8px; background: rgba(217,180,91,.05); border-radius: 8px; border: 1px solid rgba(217,180,91,.3); }
 .param-icon { font-size: 18px; min-width: 20px; }
 .param-value { font-size: 13px; color: var(--cream); }
 .card-terms { margin: 12px 0; padding: 10px; background: rgba(217,180,91,.08); border-radius: 8px; border-left: 3px solid var(--gold); }
@@ -784,12 +785,12 @@ h3 { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; margin: 6
 .tabbar button.on { color: var(--gold); }
 .tabbar button.on span { opacity: 1; }
 .xbtn { position: absolute; top: 8px; right: 8px; background: none; border: none; color: var(--muted); font-size: 15px; cursor: pointer; }
-input, textarea { display: block; width: 100%; padding: 11px; margin-top: 8px; background: var(--input); border: 1px solid var(--line); border-radius: 10px; color: var(--cream); font: inherit; }
+input, textarea { display: block; width: 100%; padding: 11px; margin-top: 8px; background: var(--input); border: 1px solid rgba(217,180,91,.3); border-radius: 10px; color: var(--cream); font: inherit; }
 input::placeholder, textarea::placeholder { color: #5f5947; }
 button { cursor: pointer; border-radius: 10px; font: inherit; padding: 10px 16px; margin-top: 10px; }
 .gold { background: linear-gradient(180deg, var(--gold2), var(--gold)); color: #241d09; border: none; font-weight: 600; }
 .gold:disabled { opacity: .4; }
-.ghost { background: transparent; border: 1px solid var(--line); color: var(--cream); }
+.ghost { background: transparent; border: 1px solid rgba(217,180,91,.3); color: var(--cream); }
 .ghost.rec { border-color: #e23; color: #f77; }
 .add { background: transparent; border: 1px solid var(--gold); color: var(--gold); padding: 6px 12px; margin: 0; font-size: 13px; }
 .bactions { display: flex; gap: 8px; flex-wrap: wrap; }
