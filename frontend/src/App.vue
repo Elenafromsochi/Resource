@@ -454,8 +454,8 @@ function onPhoto(e) {
             <div class="term-list">
               <span v-if="termList(r).length" v-for="t in termList(r)" :key="t" class="term-badge">{{ termIcon(t) }} {{ t }}</span>
               <span v-else class="term-badge">—</span>
-              <span v-if="r.amount_money" class="amount-badge">💰 {{ r.amount_money }}</span>
-              <span v-if="r.amount_points" class="amount-badge">⭐ {{ r.amount_points }} б.</span>
+              <span v-if="r.amount_money" class="amount-badge">💰 {{ r.amount_money }} ₽</span>
+              <span v-if="r.amount_points" class="amount-badge">⭐ {{ r.amount_points }}</span>
             </div>
           </div>
           <div v-if="r.fields?.where" class="card-location">
@@ -505,8 +505,8 @@ function onPhoto(e) {
               <div class="term-list">
                 <span v-if="termList(r).length" v-for="t in termList(r)" :key="t" class="term-badge">{{ termIcon(t) }} {{ t }}</span>
                 <span v-else class="term-badge">—</span>
-                <span v-if="r.amount_money" class="amount-badge">💰 {{ r.amount_money }}</span>
-                <span v-if="r.amount_points" class="amount-badge">⭐ {{ r.amount_points }} б.</span>
+                <span v-if="r.amount_money" class="amount-badge">💰 {{ r.amount_money }} ₽</span>
+                <span v-if="r.amount_points" class="amount-badge">⭐ {{ r.amount_points }}</span>
               </div>
             </div>
             <div v-if="r.fields?.where" class="card-location">
