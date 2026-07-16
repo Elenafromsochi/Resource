@@ -431,22 +431,43 @@ function onPhoto(e) {
           </div>
         </div>
         <p v-if="!gives.length" class="empty">Пока пусто. Что готовы дать, обменять или продать?</p>
-        <div v-for="r in gives" :key="r.id" class="rescard">
+        <div v-for="r in gives" :key="r.id" class="infographic-card">
           <button class="xbtn" @click="removeItem(r.id)">✕</button>
-          <div class="rk">Ресурс · {{ catLabel(r.category) }}</div>
-          <div class="rtitle3">{{ CATS[r.category]?.icon }} {{ r.title }}</div>
-          <div v-if="r.description" class="rdesc">{{ r.description }}</div>
-          <div class="zones">
-            <div class="zone"><span class="zk">Условия</span><span class="zv"><template v-if="termList(r).length"><span v-for="t in termList(r)" :key="t" class="tchip">{{ termIcon(t) }} {{ t }}</span></template><template v-else>—</template><b v-if="r.amount_money"> · 💰 {{ r.amount_money }}</b><b v-if="r.amount_points"> · ⭐ {{ r.amount_points }} б.</b><b v-if="r.amount"> · {{ r.amount }}</b></span></div>
-            <div v-if="r.fields?.where" class="zone"><span class="zk">Где</span><span class="zv">📍 {{ r.fields.where }}</span></div>
-            <div v-if="r.ideal" class="zone"><span class="zk">Для кого</span><span class="zv">{{ r.ideal }}</span></div>
+          <div class="card-type">Ресурс</div>
+          <div class="card-main">
+            <div class="card-icon">{{ CATS[r.category]?.icon }}</div>
+            <div class="card-title">{{ r.title }}</div>
+            <div v-if="r.description" class="card-desc">{{ r.description }}</div>
           </div>
-          <template v-if="expanded[r.id]">
-            <div class="rgrid"><span v-for="f in keyFields(r)" :key="f.key">{{ fieldIcon(f.key) }} {{ f.value }}</span></div>
-          </template>
-          <div class="cardfoot">
-            <button class="more" @click="toggle(r.id)">{{ expanded[r.id] ? 'свернуть' : 'подробнее' }}</button>
-            <button class="more" @click="startEdit(r)">изменить</button>
+          <div class="card-params">
+            <div class="param-grid">
+              <template v-for="f in keyFields(r)" :key="f.key">
+                <div class="param">
+                  <span class="param-icon">{{ fieldIcon(f.key) }}</span>
+                  <span class="param-value">{{ f.value }}</span>
+                </div>
+              </template>
+            </div>
+          </div>
+          <div class="card-terms">
+            <div class="term-label">Условия</div>
+            <div class="term-list">
+              <span v-if="termList(r).length" v-for="t in termList(r)" :key="t" class="term-badge">{{ termIcon(t) }} {{ t }}</span>
+              <span v-else class="term-badge">—</span>
+              <span v-if="r.amount_money" class="amount-badge">💰 {{ r.amount_money }}</span>
+              <span v-if="r.amount_points" class="amount-badge">⭐ {{ r.amount_points }} б.</span>
+            </div>
+          </div>
+          <div v-if="r.fields?.where" class="card-location">
+            <span class="loc-icon">📍</span>
+            <span>{{ r.fields.where }}</span>
+          </div>
+          <div v-if="r.ideal" class="card-ideal">
+            <span class="ideal-label">Идеально для</span>
+            <span class="ideal-text">{{ r.ideal }}</span>
+          </div>
+          <div class="card-actions">
+            <button class="action-btn" @click="startEdit(r)">✏️ Изменить</button>
           </div>
         </div>
       </section>
@@ -461,33 +482,60 @@ function onPhoto(e) {
             </div>
           </div>
           <p v-if="!activeAsks.length" class="empty">Пока пусто. Что вам нужно, ищете или хотите купить?</p>
-          <div v-for="r in activeAsks" :key="r.id" class="rescard">
+          <div v-for="r in activeAsks" :key="r.id" class="infographic-card">
             <button class="xbtn" @click="removeItem(r.id)">✕</button>
-            <div class="rk">Потребность · {{ catLabel(r.category) }}</div>
-            <div class="rtitle3">{{ CATS[r.category]?.icon }} {{ r.title }}</div>
-            <div v-if="r.description" class="rdesc">{{ r.description }}</div>
-            <div class="zones">
-              <div class="zone"><span class="zk">Условия</span><span class="zv"><template v-if="termList(r).length"><span v-for="t in termList(r)" :key="t" class="tchip">{{ termIcon(t) }} {{ t }}</span></template><template v-else>—</template><b v-if="r.amount_money"> · 💰 {{ r.amount_money }}</b><b v-if="r.amount_points"> · ⭐ {{ r.amount_points }} б.</b><b v-if="r.amount"> · {{ r.amount }}</b></span></div>
-              <div v-if="r.fields?.where" class="zone"><span class="zk">Где</span><span class="zv">📍 {{ r.fields.where }}</span></div>
-              <div v-if="r.deadline" class="zone"><span class="zk">Срок</span><span class="zv">⏳ до {{ fmtDate(r.deadline) }}</span></div>
-              <div v-if="r.impact" class="zone"><span class="zk">Польза</span><span class="zv">🌍 {{ r.impact }}</span></div>
+            <div class="card-type">Потребность</div>
+            <div class="card-main">
+              <div class="card-icon">{{ CATS[r.category]?.icon }}</div>
+              <div class="card-title">{{ r.title }}</div>
+              <div v-if="r.description" class="card-desc">{{ r.description }}</div>
             </div>
-            <template v-if="expanded[r.id]">
-              <div class="rgrid"><span v-for="f in keyFields(r)" :key="f.key">{{ fieldIcon(f.key) }} {{ f.value }}</span></div>
-            </template>
-            <div class="cardfoot">
-              <button class="more" @click="toggle(r.id)">{{ expanded[r.id] ? 'свернуть' : 'подробнее' }}</button>
-              <button class="more" @click="startEdit(r)">изменить</button>
+            <div class="card-params">
+              <div class="param-grid">
+                <template v-for="f in keyFields(r)" :key="f.key">
+                  <div class="param">
+                    <span class="param-icon">{{ fieldIcon(f.key) }}</span>
+                    <span class="param-value">{{ f.value }}</span>
+                  </div>
+                </template>
+              </div>
+            </div>
+            <div class="card-terms">
+              <div class="term-label">Условия</div>
+              <div class="term-list">
+                <span v-if="termList(r).length" v-for="t in termList(r)" :key="t" class="term-badge">{{ termIcon(t) }} {{ t }}</span>
+                <span v-else class="term-badge">—</span>
+                <span v-if="r.amount_money" class="amount-badge">💰 {{ r.amount_money }}</span>
+                <span v-if="r.amount_points" class="amount-badge">⭐ {{ r.amount_points }} б.</span>
+              </div>
+            </div>
+            <div v-if="r.fields?.where" class="card-location">
+              <span class="loc-icon">📍</span>
+              <span>{{ r.fields.where }}</span>
+            </div>
+            <div v-if="r.deadline" class="card-deadline">
+              <span class="deadline-icon">⏳</span>
+              <span>до {{ fmtDate(r.deadline) }}</span>
+            </div>
+            <div v-if="r.impact" class="card-impact">
+              <span class="impact-label">Польза мира</span>
+              <span class="impact-text">{{ r.impact }}</span>
+            </div>
+            <div class="card-actions">
+              <button class="action-btn" @click="startEdit(r)">✏️ Изменить</button>
             </div>
           </div>
         </section>
         <section v-if="archivedAsks.length" class="block">
           <div class="bhead"><span class="btitle">🗄 Архив</span></div>
           <p class="empty">Срок вышел — не в общей ленте, но остаются для будущего мэтча.</p>
-          <div v-for="r in archivedAsks" :key="r.id" class="rescard arch">
+          <div v-for="r in archivedAsks" :key="r.id" class="infographic-card archived">
             <button class="xbtn" @click="removeItem(r.id)">✕</button>
-            <div class="rk">Потребность · {{ catLabel(r.category) }} · архив</div>
-            <div class="rtitle2">{{ CATS[r.category]?.icon }} {{ r.title }}</div>
+            <div class="card-type">Потребность · архив</div>
+            <div class="card-main">
+              <div class="card-icon">{{ CATS[r.category]?.icon }}</div>
+              <div class="card-title">{{ r.title }}</div>
+            </div>
           </div>
         </section>
       </template>
@@ -569,7 +617,7 @@ function onPhoto(e) {
         </div>
         <div class="wnav">
           <button class="ghost" @click="tell.open = false">Отмена</button>
-          <button class="gold" :disabled="tell.busy || !tell.text.trim()" @click="runExtract">{{ tell.busy ? 'Разбираю…' : 'Разобрать → карточка' }}</button>
+          <button class="gold" :disabled="tell.busy || !tell.text.trim()" @click="runExtract">{{ tell.busy ? 'Создаю…' : 'Создать карточку' }}</button>
         </div>
       </div>
     </div>
@@ -597,8 +645,7 @@ function onPhoto(e) {
       <div class="wizard">
         <div class="dots"><i v-for="(s, i) in wsteps" :key="i" :class="{ on: i <= wiz.step }" /></div>
         <div class="wlbl">{{ wiz.type === 'give' ? 'РЕСУРС' : 'ПОТРЕБНОСТЬ' }} · {{ wiz.editId ? 'правка' : 'шаг ' + (wiz.step + 1) + ' из ' + wsteps.length }}</div>
-        <div v-if="extractProvider" class="wlbl" style="color: var(--gold); margin-top: 2px">разобрал: {{ extractProvider === 'yandex' ? 'YandexGPT ✓' : 'офлайн (ключ не подхватился)' }}</div>
-        <div v-if="extractQuestions.length" class="notice" style="margin: 6px 0 4px">ИИ уточняет: {{ extractQuestions.join(' · ') }}</div>
+        <div v-if="extractProvider === 'yandex'" class="wlbl" style="color: var(--gold); margin-top: 2px">разобрал: YandexGPT ✓</div>
         <h3>{{ cur.q }}</h3>
         <p v-if="cur.hint" class="hint">{{ cur.hint }}</p>
 
@@ -692,24 +739,40 @@ h3 { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; margin: 6
 .bhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .btitle { font-family: Georgia, serif; font-size: 20px; }
 .empty { color: var(--muted); font-size: 14px; }
-.rescard { position: relative; padding: 16px 16px 10px; margin-top: 12px;
-  border: 1px solid rgba(217,180,91,.4); box-shadow: 0 10px 28px rgba(0,0,0,.45); }
-.rk { font-size: 10px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--gold); opacity: .85; margin-top: 14px; }
-.rescard > .rk:first-of-type { margin-top: 0; }
-.rtitle2 { font-size: 17px; color: #fff; margin: 4px 0 2px; }
-.rtitle3 { font-family: Georgia, serif; font-size: 20px; font-weight: 600; color: #fff; margin: 2px 0 6px; line-height: 1.25; }
-.zones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin-top: 12px; }
-.zone { display: flex; flex-direction: column; gap: 2px; }
-.zk { font-size: 9.5px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); opacity: .8; }
-.zv { font-size: 14px; color: var(--cream); }
-.rv { font-size: 16px; color: #fff; margin-top: 2px; }
-.rgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin-top: 14px; font-size: 13px; color: var(--cream); }
-.rsline { margin-top: 8px; font-size: 13px; color: var(--muted); }
-.rdesc { margin-top: 6px; font-size: 14px; color: var(--cream); opacity: .92; white-space: pre-wrap; line-height: 1.45; }
-.tchip { display: inline-block; margin-right: 12px; }
-.more { background: none; border: none; color: var(--muted); font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; padding: 10px 0 2px; margin: 0; }
-.rescard.arch { opacity: .55; }
-.cardfoot { display: flex; gap: 18px; align-items: center; }
+.infographic-card { position: relative; padding: 18px; margin-top: 12px;
+  border: 2px solid rgba(217,180,91,.35); border-radius: 16px;
+  background: linear-gradient(135deg, rgba(217,180,91,.08), rgba(217,180,91,.03));
+  box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+.infographic-card.archived { opacity: .5; }
+.card-type { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--gold); opacity: .7; margin-bottom: 10px; }
+.card-main { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.card-icon { font-size: 36px; line-height: 1; }
+.card-title { font-family: Georgia, serif; font-size: 22px; font-weight: 600; color: #fff; line-height: 1.2; }
+.card-desc { font-size: 13px; color: var(--cream); opacity: .85; line-height: 1.4; white-space: pre-wrap; }
+.card-params { margin: 12px 0; }
+.param-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+.param { display: flex; align-items: center; gap: 8px; padding: 8px; background: rgba(217,180,91,.05); border-radius: 8px; border: 1px solid rgba(217,180,91,.15); }
+.param-icon { font-size: 18px; min-width: 20px; }
+.param-value { font-size: 13px; color: var(--cream); }
+.card-terms { margin: 12px 0; padding: 10px; background: rgba(217,180,91,.08); border-radius: 8px; border-left: 3px solid var(--gold); }
+.term-label { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); opacity: .7; margin-bottom: 6px; }
+.term-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.term-badge { display: inline-block; padding: 5px 10px; background: rgba(217,180,91,.15); border: 1px solid var(--gold); border-radius: 6px; font-size: 12px; color: var(--gold); }
+.amount-badge { display: inline-block; padding: 5px 10px; background: rgba(217,180,91,.2); border: 1px solid var(--gold); border-radius: 6px; font-size: 12px; color: var(--gold); font-weight: 600; }
+.card-location { display: flex; align-items: center; gap: 8px; margin: 10px 0; font-size: 13px; color: var(--cream); }
+.loc-icon { font-size: 16px; }
+.card-deadline { display: flex; align-items: center; gap: 8px; margin: 10px 0; font-size: 13px; color: var(--cream); }
+.deadline-icon { font-size: 16px; }
+.card-ideal { display: flex; flex-direction: column; gap: 4px; margin: 10px 0; padding: 10px; background: rgba(217,180,91,.06); border-radius: 8px; }
+.ideal-label { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); opacity: .7; }
+.ideal-text { font-size: 13px; color: var(--cream); }
+.card-impact { display: flex; flex-direction: column; gap: 4px; margin: 10px 0; padding: 10px; background: rgba(217,180,91,.06); border-radius: 8px; }
+.impact-label { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); opacity: .7; }
+.impact-text { font-size: 13px; color: var(--cream); }
+.card-actions { display: flex; gap: 10px; margin-top: 14px; }
+.action-btn { background: transparent; border: 1px solid var(--gold); color: var(--gold); padding: 8px 12px; font-size: 12px;
+  border-radius: 6px; cursor: pointer; transition: all .2s; }
+.action-btn:hover { background: rgba(217,180,91,.1); }
 .wiz-text { min-height: 52px; line-height: 1.4; resize: none; overflow: hidden; }
 .row .mic { align-self: flex-start; }
 .tabbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; width: 100%; max-width: 620px;
