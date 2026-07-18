@@ -8,9 +8,12 @@ from sqlalchemy.orm import Session
 from ..ai import PROFILE_FIELDS, get_assistant
 from ..auth import get_current_user
 from ..db import get_db
-from ..extract import apply_clarifications, extract_card
+from ..extract import apply_clarifications, extract_card, extract_intake, clarify_intake
 from ..models import Profile, User
-from ..schemas import AssistIn, AssistOut, CardDraft, ClarificationsIn, ExtractIn, ProfileData, ProfileOut
+from ..schemas import (
+    AssistIn, AssistOut, CardDraft, ClarificationsIn, ExtractIn, ProfileData, ProfileOut,
+    IntakeExtractIn, IntakeExtractOut, IntakeClarifyIn, IntakeClarifyOut,
+)
 
 router = APIRouter(prefix="/profile", tags=["profile"])
 
@@ -121,3 +124,30 @@ def clarify(body: ClarificationsIn, _: User = Depends(get_current_user)) -> Card
     draft_dict = body.draft.model_dump()
     updated = apply_clarifications(draft_dict, body.clarifications)
     return CardDraft(**updated)
+
+
+# --- Новая система Intake (две независимые модели) ---
+@router.post("/extract-intake", response_model=IntakeExtractOut)
+def extract_intake_endpoint(
+    body: IntakeExtractIn,
+    _: User = Depends(get_current_user),
+) -> IntakeExtractOut:
+    """ПРОМПТ 1: Извлечение данных из свободного текста.
+
+    Консервативное извлечение БЕЗ додумывания. Для каждого заполненного поля — evidence.
+    """
+    result = extract_intake(body.text, body.current_state)
+    return IntakeExtractOut(**result)
+
+
+@router.post("/clarify-intake", response_model=IntakeClarifyOut)
+def clarify_intake_endpoint(
+    body: IntakeClarifyIn,
+    _: User = Depends(get_current_user),
+) -> IntakeClarifyOut:
+    """ПРОМПТ 2: Генерация уточняющих вопросов.
+
+    На основе заполненного state возвращает максимум 3 вопроса по приоритету.
+    """
+    result = clarify_intake(body.state.model_dump())
+    return IntakeClarifyOut(**result)

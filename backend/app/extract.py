@@ -410,3 +410,207 @@ def _check_stop_criteria(state: dict) -> str | None:
         return "ready_to_search"
 
     return None
+
+# --- Старая система (для обратной совместимости) ---
+# Схема категорий и допустимых значений полей (та же, что на клиенте).
+CARD_CATS = {
+    "time_skill": {
+        "label": "Время / Навык / Услуга",
+        "fields": {
+            "level": "строка (лет опыта, напр.: 5 лет)",
+            "volume": "строка (сколько времени/регулярность)",
+            "when": ["Будни", "Выходные", "Гибко"],
+            "where": "строка (город/район или онлайн)",
+        },
+        "critical": ["level", "where"],
+    },
+    "thing": {
+        "label": "Вещь / Товар",
+        "fields": {
+            "condition": ["Новое", "Б/у как новое", "Отличное", "Хорошее", "С дефектами", "На ремонт"],
+            "where": "строка (город/район/адрес)",
+            "size": "строка (размер/габариты если важно)",
+        },
+        "critical": ["condition", "where"],
+    },
+    "space": {
+        "label": "Пространство / Место",
+        "fields": {
+            "purpose": ["Хранение", "Работа/учёба", "Мероприятие", "Проживание"],
+            "capacity": "строка (кв.м., или вместимость людей)",
+            "location": "строка (район/адрес/ближайшее метро)",
+            "schedule": ["Разово", "Регулярно", "Длительно", "Навсегда"],
+        },
+        "critical": ["capacity", "schedule"],
+    },
+    "knowledge": {
+        "label": "Знание / Опыт",
+        "fields": {
+            "topic": "строка (узко и конкретно, не просто 'дизайн')",
+            "target_level": "строка (для какого уровня: начинающие/средний/продвинутые)",
+            "format": ["Краткий ответ", "Консультация до 60 мин", "Менторство", "Записанные уроки"],
+            "channel": ["Текст", "Видео", "Встреча", "Телефон"],
+        },
+        "critical": ["topic", "format"],
+    },
+}
+TERMS = ["Дар", "За баллы", "Обмен", "Аренда", "Деньги"]
+
+_FIELD_QUESTIONS = {
+    "level": "Сколько лет вы этим занимаетесь? (реальный опыт)",
+    "volume": "Сколько часов в неделю/месяц можете уделять?",
+    "where": "Точный адрес или район? (для встречи / хранения / работы)",
+    "condition": "Описание дефектов? (если есть — важно для matching)",
+    "size": "Точные размеры или вес? (для доставки и подгона)",
+    "capacity": "Точно кв.м. или вместимость людей?",
+    "location": "Район? Есть доступ парковка/лифт? (важные детали)",
+    "schedule": "Гибкие даты или жёсткие сроки?",
+    "topic": "Совсем узко: не 'дизайн', а 'веб для e-commerce' или 'UI для мобильных'?",
+    "target_level": "Для какого уровня учеников? (совсем с нуля / уже что-то знают / продвинутые)",
+    "format": "Почему именно этот формат? (что вам нужнее всего?)",
+    "purpose": "Для чего конкретно? (какая задача?)",
+}
+
+
+def _schema_text() -> str:
+    lines = []
+    for key, cat in CARD_CATS.items():
+        parts = [f"{fk}: {fv if isinstance(fv, str) else '/'.join(fv)}" for fk, fv in cat["fields"].items()]
+        lines.append(f"- {key} ({cat['label']}): " + "; ".join(parts))
+    return "\n".join(lines)
+
+
+def _normalize_title(title: str) -> str:
+    if not title:
+        return ""
+    title = title.strip()
+    if len(title) > 1:
+        title = title[0].upper() + title[1:].lower()
+    title = title.rstrip('.')
+    return title
+
+
+def _empty_draft() -> dict:
+    return {"category": "", "title": "", "description": "", "fields": {},
+            "amount_money": "", "amount_points": "", "ideal": "", "impact": "", "questions": [], "questions_map": {}}
+
+
+def _analyze_missing_fields(draft: dict) -> tuple[list[str], dict]:
+    if not draft.get("category") or draft["category"] not in CARD_CATS:
+        return [], {}
+    cat_info = CARD_CATS[draft["category"]]
+    critical = cat_info.get("critical", [])
+    questions = []
+    questions_map = {}
+    for field in critical:
+        val = draft.get("fields", {}).get(field, "")
+        if not val or (isinstance(val, list) and len(val) == 0):
+            q = _FIELD_QUESTIONS.get(field, f"Уточните {field}?")
+            questions.append(q)
+            questions_map[field] = q
+    return questions[:3], {k: questions_map[k] for k in list(questions_map.keys())[:3]}
+
+
+def apply_clarifications(draft: dict, clarifications: dict) -> dict:
+    if not clarifications:
+        return draft
+    updated = {**draft}
+    if "fields" not in updated:
+        updated["fields"] = {}
+    for key, value in clarifications.items():
+        if key in _FIELD_QUESTIONS and value:
+            updated["fields"][key] = value
+    questions, questions_map = _analyze_missing_fields(updated)
+    updated["questions"] = questions
+    updated["questions_map"] = questions_map
+    return updated
+
+
+def extract_card(text: str, kind: str) -> dict:
+    if settings.yandex_api_key and settings.yandex_folder_id:
+        try:
+            return _yandex_extract_card(text, kind)
+        except Exception:
+            pass
+    return _offline_extract_card(text, kind)
+
+
+def _yandex_extract_card(text: str, kind: str) -> dict:
+    import re
+    side = "ресурс (что человек даёт)" if kind == "give" else "потребность/проект (что человеку нужно)"
+    system = (
+        "Ты помощник сервиса обмена ресурсами. По свободному рассказу человека собери "
+        f"карточку: это {side}. Категории и поля:\n{_schema_text()}\n"
+        f"Условия (terms) — массив из: {', '.join(TERMS)}.\n"
+        "Верни СТРОГО JSON с ключами: category (один из ключей выше), "
+        "title (КОРОТКОЕ название существительным, без глагола, напр. «Жильё у моря»), "
+        "description (подробное описание своими словами), fields (объект с полями категории; "
+        "terms — массив; where/city — строкой), amount_money (сколько денег, если в terms есть «Деньги», иначе пусто), amount_points (сколько баллов, если в terms есть «За баллы», иначе пусто), "
+        "ideal (кому идеально подойдёт — для ресурса), impact (какая польза миру/людям — для потребности), "
+        "questions (массив 1-3 коротких уточняющих вопросов по важному, чего не хватает). "
+        "Не выдумывай факты; если поля нет в рассказе — оставь пустым."
+    )
+    resp = httpx.post(
+        "https://llm.api.cloud.yandex.net/foundationModels/v1/completion",
+        headers={"Authorization": f"Api-Key {settings.yandex_api_key}", "x-folder-id": settings.yandex_folder_id},
+        json={
+            "modelUri": f"gpt://{settings.yandex_folder_id}/{settings.yandex_model}/latest",
+            "completionOptions": {"stream": False, "temperature": 0.2, "maxTokens": 2000},
+            "messages": [{"role": "system", "text": system}, {"role": "user", "text": text}],
+        },
+        timeout=45,
+    )
+    resp.raise_for_status()
+    raw = resp.json()["result"]["alternatives"][0]["message"]["text"]
+    data = json.loads(re.search(r"\{.*\}", raw, re.DOTALL).group(0))
+    draft = _empty_draft()
+    for k in ("category", "description", "amount_money", "amount_points", "ideal", "impact"):
+        if data.get(k):
+            draft[k] = data[k]
+    if data.get("title"):
+        draft["title"] = _normalize_title(data["title"])
+    if isinstance(data.get("fields"), dict):
+        draft["fields"] = data["fields"]
+    if isinstance(data.get("questions"), list) and data["questions"]:
+        draft["questions"] = [str(q) for q in data["questions"]][:3]
+        draft["questions_map"] = {}
+    else:
+        questions, questions_map = _analyze_missing_fields(draft)
+        draft["questions"] = questions
+        draft["questions_map"] = questions_map
+    draft["provider"] = "yandex"
+    return draft
+
+
+_CAT_HINTS = {
+    "space": ["жиль", "квартир", "помещ", "место", "комнат", "офис", "площад", "аренд"],
+    "knowledge": ["знан", "опыт", "курс", "ментор", "консульт", "научу", "объясн", "тема"],
+    "thing": ["вещь", "товар", "отдам", "продам", "куплю", "предмет", "инструмент"],
+    "time_skill": ["масс", "помощь", "услуг", "умею", "сделаю", "время", "навык"],
+}
+
+
+def _offline_extract_card(text: str, kind: str) -> dict:
+    import re
+    draft = _empty_draft()
+    low = (text or "").lower()
+    draft["category"] = next((c for c, hints in _CAT_HINTS.items() if any(h in low for h in hints)), "time_skill")
+    words = (text or "").strip().split()
+    draft["title"] = _normalize_title(" ".join(words[:5]))
+    draft["description"] = (text or "").strip()
+    terms = []
+    if re.search(r"балл", low):
+        terms.append("За баллы")
+    if re.search(r"деньг|руб|₽|продам|куплю|плат", low):
+        terms.append("Деньги")
+    if re.search(r"обмен|бартер", low):
+        terms.append("Обмен")
+    if re.search(r"\bдар\b|бесплатн", low):
+        terms.append("Дар")
+    if terms:
+        draft["fields"]["terms"] = terms
+    questions, questions_map = _analyze_missing_fields(draft)
+    draft["questions"] = questions
+    draft["questions_map"] = questions_map
+    draft["provider"] = "local"
+    return draft
