@@ -222,10 +222,18 @@ async function runIntakeExtract() {
   tell.busy = true; error.value = ''
   try {
     const state = await api.extractIntake(tell.text, null)
+
+    // ВАЖНО: Установим правильный mode на основе выбора пользователя
+    // tell.type: 'give' → mode: 'resource' (разместить ресурс)
+    // tell.type: 'ask' → mode: 'need' (разместить потребность)
+    state.mode = tell.type === 'give' ? 'resource' : 'need'
+
     intake.state = state
     intake.type = tell.type
     intake.answers = {}
     intake.questionIndex = 0
+
+    console.log('runIntakeExtract: state.mode =', state.mode, 'tell.type =', tell.type)
 
     // Получаем первую волну вопросов
     const clarifyResult = await api.clarifyIntake(state)
