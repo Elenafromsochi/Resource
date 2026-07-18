@@ -31,7 +31,8 @@ CARD_CATS = {
         "label": "Вещь / Товар",
         "fields": {
             "condition": ["Новое", "Б/у как новое", "Отличное", "Хорошее", "С дефектами", "На ремонт"],
-            "where": "строка (город/район)",
+            "where": "строка (город/район/адрес)",
+            "size": "строка (размер/габариты если важно)",
         },
         "critical": ["condition", "where"],
     },
@@ -39,7 +40,8 @@ CARD_CATS = {
         "label": "Пространство / Место",
         "fields": {
             "purpose": ["Хранение", "Работа/учёба", "Мероприятие", "Проживание"],
-            "capacity": "строка (площадь/вместимость)",
+            "capacity": "строка (кв.м., или вместимость людей)",
+            "location": "строка (район/адрес/ближайшее метро)",
             "schedule": ["Разово", "Регулярно", "Длительно", "Навсегда"],
         },
         "critical": ["capacity", "schedule"],
@@ -47,7 +49,8 @@ CARD_CATS = {
     "knowledge": {
         "label": "Знание / Опыт",
         "fields": {
-            "topic": "строка (тема)",
+            "topic": "строка (узко и конкретно, не просто 'дизайн')",
+            "target_level": "строка (для какого уровня: начинающие/средний/продвинутые)",
             "format": ["Краткий ответ", "Консультация до 60 мин", "Менторство", "Записанные уроки"],
             "channel": ["Текст", "Видео", "Встреча", "Телефон"],
         },
@@ -56,17 +59,20 @@ CARD_CATS = {
 }
 TERMS = ["Дар", "За баллы", "Обмен", "Аренда", "Деньги"]
 
-# Вопросы-подсказки для критичных полей (фокусируемся на matching)
+# Вопросы-подсказки для критичных полей (для УМНОГО matching)
 _FIELD_QUESTIONS = {
-    "level": "Сколько лет вы этим занимаетесь?",
-    "volume": "Сколько часов/недель вы можете уделять?",
-    "where": "Где это происходит? (У меня / У тебя / Онлайн / Город)",
-    "condition": "Какое состояние? (Новое / Б/у как новое / Отличное / Хорошее / С дефектами / На ремонт)",
-    "capacity": "Точные размеры/площадь и вместимость?",
-    "schedule": "На какой срок это нужно? (Разово / Регулярно / Длительно / Навсегда)",
-    "topic": "Узко: что конкретно? (не просто 'дизайн', а 'веб-дизайн для e-commerce')",
-    "format": "Какой формат предпочитаете? (краткий ответ / консультация / менторство / курс)",
-    "purpose": "Для чего конкретно? (Хранение / Работа / Мероприятие / Жилье)",
+    "level": "Сколько лет вы этим занимаетесь? (реальный опыт)",
+    "volume": "Сколько часов в неделю/месяц можете уделять?",
+    "where": "Точный адрес или район? (для встречи / хранения / работы)",
+    "condition": "Описание дефектов? (если есть — важно для matching)",
+    "size": "Точные размеры или вес? (для доставки и подгона)",
+    "capacity": "Точно кв.м. или вместимость людей?",
+    "location": "Район? Есть доступ парковка/лифт? (важные детали)",
+    "schedule": "Гибкие даты или жёсткие сроки?",
+    "topic": "Совсем узко: не 'дизайн', а 'веб для e-commerce' или 'UI для мобильных'?",
+    "target_level": "Для какого уровня учеников? (совсем с нуля / уже что-то знают / продвинутые)",
+    "format": "Почему именно этот формат? (что вам нужнее всего?)",
+    "purpose": "Для чего конкретно? (какая задача?)",
 }
 
 
@@ -76,6 +82,20 @@ def _schema_text() -> str:
         parts = [f"{fk}: {fv if isinstance(fv, str) else '/'.join(fv)}" for fk, fv in cat["fields"].items()]
         lines.append(f"- {key} ({cat['label']}): " + "; ".join(parts))
     return "\n".join(lines)
+
+
+def _normalize_title(title: str) -> str:
+    """Нормализовать извлечённый титл: убрать случайные заглавные буквы, добавить пунктуацию."""
+    if not title:
+        return ""
+    # Убираем лишние пробелы
+    title = title.strip()
+    # Оставляем только первую букву заглавной (или первое слово)
+    if len(title) > 1:
+        title = title[0].upper() + title[1:].lower()
+    # Убираем точку в конце, если есть, потом сами добавим при нужде
+    title = title.rstrip('.')
+    return title
 
 
 def _empty_draft() -> dict:
@@ -177,9 +197,12 @@ def _yandex_extract(text: str, kind: str) -> dict:
     raw = resp.json()["result"]["alternatives"][0]["message"]["text"]
     data = json.loads(re.search(r"\{.*\}", raw, re.DOTALL).group(0))
     draft = _empty_draft()
-    for k in ("category", "title", "description", "amount_money", "amount_points", "ideal", "impact"):
+    for k in ("category", "description", "amount_money", "amount_points", "ideal", "impact"):
         if data.get(k):
             draft[k] = data[k]
+    # Нормализуем титл отдельно
+    if data.get("title"):
+        draft["title"] = _normalize_title(data["title"])
     if isinstance(data.get("fields"), dict):
         draft["fields"] = data["fields"]
     # Если ИИ вернул вопросы — используем их; если нет — анализируем критичные поля
@@ -207,7 +230,7 @@ def _offline_extract(text: str, kind: str) -> dict:
     low = (text or "").lower()
     draft["category"] = next((c for c, hints in _CAT_HINTS.items() if any(h in low for h in hints)), "time_skill")
     words = (text or "").strip().split()
-    draft["title"] = " ".join(words[:5])
+    draft["title"] = _normalize_title(" ".join(words[:5]))
     draft["description"] = (text or "").strip()
     terms = []
     if re.search(r"балл", low):

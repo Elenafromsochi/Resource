@@ -338,9 +338,21 @@ function itemFields(r) {
 }
 // Иконки параметров и условий — чтобы карточка читалась «глазами», а не текстом.
 const FIELD_ICON = { level: '🎚', volume: '⏳', when: '📅', urgency: '⏰', where: '📍',
-  condition: '🏷', purpose: '🎯', capacity: '📐', schedule: '🗓', topic: '📚', format: '🎓', channel: '💬' }
+  condition: '🏷', purpose: '🎯', capacity: '📐', schedule: '🗓', topic: '📚', format: '🎓', channel: '💬', size: '📏', location: '🗺', target_level: '👥' }
+const CRITICAL_FIELDS = {
+  time_skill: ['level', 'where'],
+  thing: ['condition', 'where'],
+  space: ['capacity', 'schedule'],
+  knowledge: ['topic', 'format'],
+}
 function fieldIcon(k) { return FIELD_ICON[k] || '•' }
-function keyFields(r) { return itemFields(r).filter(f => f.key !== 'terms' && f.key !== 'where') }
+// Критические поля для саморезации (выделяются на карточке)
+function criticalFields(r) {
+  const critical = CRITICAL_FIELDS[r.category] || []
+  return itemFields(r).filter(f => critical.includes(f.key))
+}
+// Прочие важные поля
+function keyFields(r) { return itemFields(r).filter(f => f.key !== 'terms' && f.key !== 'where' && !CRITICAL_FIELDS[r.category]?.includes(f.key)) }
 function termIcon(v) {
   const s = (v || '').toLowerCase()
   if (s.includes('дар') || s.includes('подар')) return '🎁'
@@ -439,7 +451,17 @@ function onPhoto(e) {
             <div class="card-title">{{ r.title }}</div>
             <div v-if="r.description" class="card-desc">{{ r.description }}</div>
           </div>
-          <div class="card-params">
+          <div class="card-critical">
+            <div class="critical-grid">
+              <template v-for="f in criticalFields(r)" :key="f.key">
+                <div class="critical-param">
+                  <span class="param-icon">{{ fieldIcon(f.key) }}</span>
+                  <span class="param-value">{{ f.value }}</span>
+                </div>
+              </template>
+            </div>
+          </div>
+          <div v-if="keyFields(r).length" class="card-params">
             <div class="param-grid">
               <template v-for="f in keyFields(r)" :key="f.key">
                 <div class="param">
@@ -490,7 +512,17 @@ function onPhoto(e) {
               <div class="card-title">{{ r.title }}</div>
               <div v-if="r.description" class="card-desc">{{ r.description }}</div>
             </div>
-            <div class="card-params">
+            <div class="card-critical">
+              <div class="critical-grid">
+                <template v-for="f in criticalFields(r)" :key="f.key">
+                  <div class="critical-param">
+                    <span class="param-icon">{{ fieldIcon(f.key) }}</span>
+                    <span class="param-value">{{ f.value }}</span>
+                  </div>
+                </template>
+              </div>
+            </div>
+            <div v-if="keyFields(r).length" class="card-params">
               <div class="param-grid">
                 <template v-for="f in keyFields(r)" :key="f.key">
                   <div class="param">
@@ -750,9 +782,12 @@ h3 { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; margin: 6
 .card-icon { font-size: 36px; line-height: 1; }
 .card-title { font-family: Georgia, serif; font-size: 22px; font-weight: 600; color: #fff; line-height: 1.2; }
 .card-desc { font-size: 13px; color: var(--cream); opacity: .85; line-height: 1.4; white-space: pre-wrap; }
-.card-params { margin: 12px 0; }
+.card-critical { margin: 12px 0 8px; padding: 10px; background: rgba(217,180,91,.12); border-radius: 10px; border: 1px solid rgba(217,180,91,.4); }
+.critical-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.critical-param { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: rgba(217,180,91,.15); border-radius: 8px; border-left: 3px solid var(--gold); }
+.card-params { margin: 8px 0; }
 .param-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
-.param { display: flex; align-items: center; gap: 8px; padding: 8px; background: rgba(217,180,91,.05); border-radius: 8px; border: 1px solid rgba(217,180,91,.3); }
+.param { display: flex; align-items: center; gap: 8px; padding: 8px; background: rgba(217,180,91,.05); border-radius: 8px; border: 1px solid rgba(217,180,91,.2); opacity: .85; }
 .param-icon { font-size: 18px; min-width: 20px; }
 .param-value { font-size: 13px; color: var(--cream); }
 .card-terms { margin: 12px 0; padding: 10px; background: rgba(217,180,91,.08); border-radius: 8px; border-left: 3px solid var(--gold); }
