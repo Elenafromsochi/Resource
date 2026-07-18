@@ -221,37 +221,49 @@ async function submitClarifications() {
 async function runIntakeExtract() {
   tell.busy = true; error.value = ''
   try {
+    console.log('=== runIntakeExtract START ===')
+    console.log('tell.text:', tell.text)
+    console.log('tell.type:', tell.type)
+
     const state = await api.extractIntake(tell.text, null)
+    console.log('✓ extractIntake response:', state)
 
     // ВАЖНО: Установим правильный mode на основе выбора пользователя
-    // tell.type: 'give' → mode: 'resource' (разместить ресурс)
-    // tell.type: 'ask' → mode: 'need' (разместить потребность)
     state.mode = tell.type === 'give' ? 'resource' : 'need'
+    console.log('✓ Set mode to:', state.mode)
 
     intake.state = state
     intake.type = tell.type
     intake.answers = {}
     intake.questionIndex = 0
 
-    console.log('runIntakeExtract: state.mode =', state.mode, 'tell.type =', tell.type)
-
     // Получаем первую волну вопросов
+    console.log('Calling clarifyIntake with state:', state)
     const clarifyResult = await api.clarifyIntake(state)
+    console.log('✓ clarifyIntake response:', clarifyResult)
+
     intake.questions = clarifyResult.questions || []
 
     if (clarifyResult.stop_reason === 'ready_to_search') {
-      // Достаточно данных, открываем редактор или поиск
+      console.log('→ Ready to search, opening card')
       loadCardFromIntake()
     } else if (intake.questions.length > 0) {
-      // Показываем первый вопрос
+      console.log('→ Got', intake.questions.length, 'questions, showing first')
       intake.currentQuestion = intake.questions[0]
       intake.open = true
       tell.open = false
+      console.log('✓ First question:', intake.currentQuestion.text)
     } else {
-      // Нет вопросов и не готово к поиску — откроем редактор
+      console.log('→ No questions, opening card')
       loadCardFromIntake()
     }
-  } catch (e) { error.value = e.message } finally { tell.busy = false }
+    console.log('=== runIntakeExtract END ===')
+  } catch (e) {
+    console.error('❌ ERROR in runIntakeExtract:', e)
+    error.value = e.message
+  } finally {
+    tell.busy = false
+  }
 }
 
 async function submitIntakeAnswer() {
@@ -370,35 +382,39 @@ function selectIntakeVariant(variant) {
 }
 
 function loadCardFromIntake() {
-  // Загружаем карточку из intake state
-  console.log('loadCardFromIntake: intake.state=', intake.state)
+  console.log('→ loadCardFromIntake START')
+  console.log('  intake.type:', intake.type)
+  console.log('  intake.state:', intake.state)
+
   wiz.type = intake.type; wiz.editId = null
 
   // Если категория не определена из intake, мастер попросит выбрать её
-  const category = intake.state.category || ''
+  const category = intake.state?.category || ''
 
   wiz.draft = {
     category: category,
-    title: intake.state.object_text || '',
-    description: intake.state.object_text || '',
-    impact: intake.state.impact || '',
+    title: intake.state?.object_text || '',
+    description: intake.state?.object_text || '',
+    impact: intake.state?.impact || '',
     fields: {
-      level: intake.state.object_level,
-      where: intake.state.where_geo || intake.state.where_mode
+      level: intake.state?.object_level,
+      where: intake.state?.where_geo || intake.state?.where_mode
     },
     ideal: '',
     term: '',
     customDate: '',
-    amount_money: intake.state.amount_money || '',
-    amount_points: intake.state.amount_points || ''
+    amount_money: intake.state?.amount_money || '',
+    amount_points: intake.state?.amount_points || ''
   }
 
-  console.log('loadCardFromIntake: wiz.draft=', wiz.draft)
+  console.log('  wiz.type:', wiz.type)
+  console.log('  wiz.draft.category:', wiz.draft.category)
 
   wiz.step = category ? 1 : 0
   wiz.open = true
 
-  console.log('Opening wizard at step', wiz.step)
+  console.log('✓ Wizard opened at step', wiz.step)
+  console.log('→ loadCardFromIntake END')
 }
 
 function startEdit(r) {
