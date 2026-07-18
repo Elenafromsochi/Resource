@@ -170,6 +170,8 @@ const tell = reactive({ open: false, type: 'give', text: '', photo: null, busy: 
 const extractQuestions = ref([])
 const extractProvider = ref('')
 const clarification = reactive({ open: false, questionPairs: [], answers: {}, busy: false, currentDraft: null })
+// Новая система Intake (две независимые модели)
+const intake = reactive({ open: false, type: 'give', state: null, currentQuestion: null, questionIndex: 0, questions: [], answers: {}, busy: false })
 function openTell(type) { tell.type = type; tell.text = ''; tell.photo = null; tell.open = true; extractQuestions.value = [] }
 function handlePhotoUpload(e) { const file = e.target.files?.[0]; if (file) { const r = new FileReader(); r.onload = ev => tell.photo = ev.target.result; r.readAsDataURL(file) } }
 async function runExtract() {
@@ -213,6 +215,85 @@ async function submitClarifications() {
     clarification.open = false
     wiz.open = true
   } catch (e) { error.value = e.message } finally { clarification.busy = false }
+}
+
+// Новая система Intake
+async function runIntakeExtract() {
+  tell.busy = true; error.value = ''
+  try {
+    const state = await api.extractIntake(tell.text, null)
+    intake.state = state
+    intake.type = tell.type
+    intake.answers = {}
+    intake.questionIndex = 0
+
+    // Получаем первую волну вопросов
+    const clarifyResult = await api.clarifyIntake(state)
+    intake.questions = clarifyResult.questions || []
+
+    if (clarifyResult.stop_reason === 'ready_to_search') {
+      // Достаточно данных, открываем редактор или поиск
+      loadCardFromIntake()
+    } else if (intake.questions.length > 0) {
+      // Показываем первый вопрос
+      intake.currentQuestion = intake.questions[0]
+      intake.open = true
+      tell.open = false
+    } else {
+      // Нет вопросов и не готово к поиску — откроем редактор
+      loadCardFromIntake()
+    }
+  } catch (e) { error.value = e.message } finally { tell.busy = false }
+}
+
+async function submitIntakeAnswer() {
+  intake.busy = true; error.value = ''
+  try {
+    const answer = intake.answers[intake.currentQuestion.field]
+    if (!answer) throw new Error('Пожалуйста, ответьте на вопрос')
+
+    // Обновляем state в зависимости от типа ответа
+    intake.state[intake.currentQuestion.field] = answer
+
+    // Получаем следующую волну вопросов
+    const clarifyResult = await api.clarifyIntake(intake.state)
+
+    if (clarifyResult.stop_reason === 'ready_to_search') {
+      loadCardFromIntake()
+      intake.open = false
+    } else if (clarifyResult.questions && clarifyResult.questions.length > 0) {
+      // Показываем следующий вопрос
+      intake.currentQuestion = clarifyResult.questions[0]
+      intake.questions = clarifyResult.questions
+      intake.questionIndex += 1
+    } else {
+      // Нет больше вопросов
+      loadCardFromIntake()
+      intake.open = false
+    }
+  } catch (e) { error.value = e.message } finally { intake.busy = false }
+}
+
+function loadCardFromIntake() {
+  // Загружаем карточку из intake state
+  wiz.type = intake.type; wiz.editId = null
+  wiz.draft = {
+    category: intake.state.category || '',
+    title: intake.state.object_text || '',
+    description: intake.state.object_text || '',
+    impact: '',
+    fields: {
+      level: intake.state.object_level,
+      where: intake.state.where_geo || intake.state.where_mode
+    },
+    ideal: '',
+    term: '',
+    customDate: '',
+    amount_money: '',
+    amount_points: ''
+  }
+  wiz.step = wiz.draft.category ? 1 : 0
+  wiz.open = true
 }
 
 function startEdit(r) {
@@ -668,6 +749,28 @@ function onPhoto(e) {
         <div class="wnav">
           <button class="ghost" @click="clarification.open = false">Пропустить</button>
           <button class="gold" :disabled="clarification.busy || !Object.values(clarification.answers).some(a => a)" @click="submitClarifications">{{ clarification.busy ? 'Обновляю…' : 'Готово' }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Новая система Intake (один вопрос за раз) -->
+    <div v-if="intake.open" class="overlay" @click.self="intake.open = false">
+      <div class="wizard">
+        <div class="wlbl">{{ intake.questionIndex + 1 }} из {{ intake.questions.length }}</div>
+        <h3>{{ intake.currentQuestion?.text }}</h3>
+        <p v-if="intake.currentQuestion?.explanation" class="hint">{{ intake.currentQuestion.explanation }}</p>
+
+        <!-- Варианты ответов -->
+        <div v-if="intake.currentQuestion?.variants" class="opts">
+          <button v-for="variant in intake.currentQuestion.variants" :key="variant" class="chip" :class="{ sel: intake.answers[intake.currentQuestion.field] === variant }" @click="intake.answers[intake.currentQuestion.field] = variant">{{ variant }}</button>
+        </div>
+
+        <!-- Текстовый ввод (если нет вариантов) -->
+        <input v-else v-model="intake.answers[intake.currentQuestion?.field]" type="text" class="wiz-text" :placeholder="'Ответ...'" />
+
+        <div class="wnav">
+          <button class="ghost" @click="intake.open = false">Пропустить</button>
+          <button class="gold" :disabled="intake.busy || !intake.answers[intake.currentQuestion?.field]" @click="submitIntakeAnswer">{{ intake.busy ? 'Обновляю…' : 'Дальше' }}</button>
         </div>
       </div>
     </div>
