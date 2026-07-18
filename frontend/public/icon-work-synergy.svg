@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bg" cx="35%" cy="28%" r="90%">
+      <stop offset="0%" stop-color="#2a2119"/><stop offset="60%" stop-color="#161009"/><stop offset="100%" stop-color="#0b0805"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f6db8e"/><stop offset="45%" stop-color="#dcb75f"/><stop offset="100%" stop-color="#b07f34"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="496" height="496" rx="116" fill="url(#bg)"/>
+  <rect x="10.5" y="10.5" width="491" height="491" rx="114" fill="none" stroke="url(#gold)" stroke-opacity=".55" stroke-width="3"/>
+
+  <!-- Two overlapping circles with small tight connection -->
+  <!-- Left circle -->
+  <circle cx="160" cy="256" r="110" fill="none" stroke="url(#gold)" stroke-width="5" stroke-opacity=".9"/>
+
+  <!-- Right circle -->
+  <circle cx="352" cy="256" r="110" fill="none" stroke="url(#gold)" stroke-width="5" stroke-opacity=".9"/>
+
+  <!-- Gold arrows - opposite rotation directions -->
+  <g stroke="url(#gold)" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.85">
+    <!-- LEFT CIRCLE - Clockwise arrows -->
+    <!-- Top (12 o'clock) pointing down-right -->
+    <path d="M 160 135 L 180 160 M 180 160 L 170 152 M 180 160 L 185 170"/>
+    <!-- Right (3 o'clock) pointing down-left -->
+    <path d="M 270 256 L 250 280 M 250 280 L 258 270 M 250 280 L 240 275"/>
+    <!-- Bottom (6 o'clock) pointing up-left -->
+    <path d="M 160 378 L 140 352 M 140 352 L 150 360 M 140 352 L 135 342"/>
+    <!-- Left (9 o'clock) pointing up-right -->
+    <path d="M 50 256 L 75 232 M 75 232 L 67 242 M 75 232 L 82 237"/>
+
+    <!-- RIGHT CIRCLE - Counter-clockwise arrows -->
+    <!-- Top (12 o'clock) pointing down-left -->
+    <path d="M 352 135 L 330 160 M 330 160 L 342 152 M 330 160 L 327 170"/>
+    <!-- Left (9 o'clock) pointing down-right -->
+    <path d="M 242 256 L 262 280 M 262 280 L 254 270 M 262 280 L 272 275"/>
+    <!-- Bottom (6 o'clock) pointing up-right -->
+    <path d="M 352 378 L 372 352 M 372 352 L 362 360 M 372 352 L 377 342"/>
+    <!-- Right (3 o'clock) pointing up-left -->
+    <path d="M 462 256 L 437 232 M 437 232 L 445 242 M 437 232 L 430 237"/>
+  </g>
+</svg>

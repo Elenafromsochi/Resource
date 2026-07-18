@@ -49,6 +49,18 @@ class Settings:
     yandex_folder_id: str = os.getenv("YANDEX_FOLDER_ID", "")
     yandex_model: str = os.getenv("YANDEX_MODEL", "yandexgpt-lite")
 
+    # Вход через Яндекс ID (OAuth). Если ключи заданы — на входе показывается
+    # кнопка «Войти через Яндекс» (одно касание, без пароля).
+    yandex_oauth_client_id: str = os.getenv("YANDEX_OAUTH_CLIENT_ID", "")
+    yandex_oauth_client_secret: str = os.getenv("YANDEX_OAUTH_CLIENT_SECRET", "")
+    # Публичный адрес сайта (для redirect_uri). Напр. https://resurs.example.ru
+    # Должен точно совпадать с Redirect URI, указанным в приложении Яндекса.
+    public_url: str = os.getenv("PUBLIC_URL", "").rstrip("/")
+
+    @property
+    def yandex_login_enabled(self) -> bool:
+        return bool(self.yandex_oauth_client_id and self.yandex_oauth_client_secret)
+
     # CORS.
     cors_origins: list[str] = [
         o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",") if o.strip()

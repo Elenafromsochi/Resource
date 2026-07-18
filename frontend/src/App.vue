@@ -1,12 +1,13 @@
 <script setup>
 import { reactive, ref, onMounted, computed, nextTick, watch } from 'vue'
-import { api, getToken, setToken } from './api.js'
+import { api, getToken, setToken, yandexLoginUrl } from './api.js'
 
 const error = ref('')
 const notice = ref('')
 const profile = ref(null)
 const loggedIn = ref(!!getToken())
 const tab = ref('resources')  // resources | needs | match | track | profile
+const yandexLogin = ref(false)  // показывать ли кнопку «Войти через Яндекс»
 
 // --- вход / регистрация ---
 const auth = reactive({ email: '', password: '', mode: 'login' })
@@ -18,7 +19,17 @@ async function submitAuth() {
     setToken(access_token); loggedIn.value = true; await loadProfile()
   } catch (e) { error.value = e.message }
 }
+function loginWithYandex() { window.location.href = yandexLoginUrl }
 function logout() { setToken(null); loggedIn.value = false; profile.value = null }
+
+// Возврат после входа через Яндекс: токен (или ошибка) приходит в адресе.
+function pickUpOAuthResult() {
+  const p = new URLSearchParams(window.location.search)
+  const token = p.get('token'); const authError = p.get('auth_error')
+  if (token) { setToken(token); loggedIn.value = true }
+  if (authError) error.value = 'Не удалось войти через Яндекс. Попробуйте ещё раз или войдите по почте.'
+  if (token || authError) window.history.replaceState({}, '', window.location.pathname)
+}
 
 // --- профиль ---
 const form = reactive({
@@ -30,7 +41,11 @@ async function loadProfile() {
   try { profile.value = await api.getProfile(); fill(profile.value) }
   catch (e) { logout(); error.value = 'Пожалуйста, войдите снова.' }
 }
-onMounted(() => { if (loggedIn.value) loadProfile() })
+onMounted(async () => {
+  pickUpOAuthResult()
+  try { yandexLogin.value = (await api.getConfig()).yandex_login } catch { /* не критично */ }
+  if (loggedIn.value) loadProfile()
+})
 async function save() {
   error.value = ''
   try { profile.value = await api.saveProfile({ ...form }); fill(profile.value) }
@@ -146,14 +161,19 @@ const wiz = reactive({ open: false, type: 'give', step: 0, draft: emptyDraft(), 
 function emptyDraft() { return { category: '', title: '', description: '', impact: '', fields: {}, ideal: '', term: '', customDate: '', amount_money: '', amount_points: '' } }
 function startWizard(type, presetTitle = '') {
   wiz.type = type; wiz.step = 0; wiz.draft = emptyDraft(); wiz.editId = null
+  extractQuestions.value = []; extractProvider.value = ''
   if (presetTitle) wiz.draft.title = presetTitle
   wiz.open = true
 }
 // «Рассказать»: наговорил одним текстом → ИИ разложил по карточке (открывается мастер прифилленным).
-const tell = reactive({ open: false, type: 'give', text: '', busy: false })
+const tell = reactive({ open: false, type: 'give', text: '', photo: null, busy: false })
 const extractQuestions = ref([])
 const extractProvider = ref('')
-function openTell(type) { tell.type = type; tell.text = ''; tell.open = true; extractQuestions.value = [] }
+const clarification = reactive({ open: false, questionPairs: [], answers: {}, busy: false, currentDraft: null })
+// Новая система Intake (две независимые модели)
+const intake = reactive({ open: false, type: 'give', state: null, currentQuestion: null, questionIndex: 0, questions: [], answers: {}, busy: false })
+function openTell(type) { tell.type = type; tell.text = ''; tell.photo = null; tell.open = true; extractQuestions.value = [] }
+function handlePhotoUpload(e) { const file = e.target.files?.[0]; if (file) { const r = new FileReader(); r.onload = ev => tell.photo = ev.target.result; r.readAsDataURL(file) } }
 async function runExtract() {
   tell.busy = true; error.value = ''
   try {
@@ -167,8 +187,234 @@ async function runExtract() {
     }
     wiz.step = wiz.draft.category ? 1 : 0
     extractQuestions.value = d.questions || []
-    wiz.open = true; tell.open = false
+
+    // Если есть уточняющие вопросы — показываем их отдельно перед мастером
+    if (d.questions && d.questions.length > 0 && d.questions_map) {
+      // Строим пары (field, question) из questions_map
+      clarification.questionPairs = Object.entries(d.questions_map).map(([field, question]) => ({ field, question }))
+      clarification.answers = {}
+      clarification.currentDraft = { ...wiz.draft, questions_map: d.questions_map || {}, provider: extractProvider.value }
+      clarification.open = true
+      tell.open = false
+    } else {
+      wiz.open = true; tell.open = false
+    }
   } catch (e) { error.value = e.message } finally { tell.busy = false }
+}
+async function submitClarifications() {
+  clarification.busy = true; error.value = ''
+  try {
+    const updated = await api.clarify(clarification.currentDraft, clarification.answers)
+    // Обновляем черновик с уточнениями
+    wiz.draft = {
+      category: updated.category || '', title: updated.title || '', description: updated.description || '',
+      impact: updated.impact || '', fields: { ...(updated.fields || {}) }, ideal: updated.ideal || '',
+      term: '', customDate: '', amount_money: updated.amount_money || '', amount_points: updated.amount_points || '',
+    }
+    extractQuestions.value = updated.questions || []
+    clarification.open = false
+    wiz.open = true
+  } catch (e) { error.value = e.message } finally { clarification.busy = false }
+}
+
+// Новая система Intake
+async function runIntakeExtract() {
+  tell.busy = true; error.value = ''
+  try {
+    console.log('=== runIntakeExtract START ===')
+    console.log('tell.text:', tell.text)
+    console.log('tell.type:', tell.type)
+
+    const state = await api.extractIntake(tell.text, null)
+    console.log('✓ extractIntake response:', state)
+
+    // ВАЖНО: Установим правильный mode на основе выбора пользователя
+    state.mode = tell.type === 'give' ? 'resource' : 'need'
+    console.log('✓ Set mode to:', state.mode)
+
+    intake.state = state
+    intake.type = tell.type
+    intake.answers = {}
+    intake.questionIndex = 0
+
+    // Получаем первую волну вопросов
+    console.log('Calling clarifyIntake with state:', state)
+    const clarifyResult = await api.clarifyIntake(state)
+    console.log('✓ clarifyIntake response:', clarifyResult)
+
+    intake.questions = clarifyResult.questions || []
+
+    if (clarifyResult.stop_reason === 'ready_to_search') {
+      console.log('→ Ready to search, opening card')
+      loadCardFromIntake()
+    } else if (intake.questions.length > 0) {
+      console.log('→ Got', intake.questions.length, 'questions, showing first')
+      intake.currentQuestion = intake.questions[0]
+      intake.open = true
+      tell.open = false
+      console.log('✓ First question:', intake.currentQuestion.text)
+    } else {
+      console.log('→ No questions, opening card')
+      loadCardFromIntake()
+    }
+    console.log('=== runIntakeExtract END ===')
+  } catch (e) {
+    console.error('❌ ERROR in runIntakeExtract:', e)
+    error.value = e.message
+  } finally {
+    tell.busy = false
+  }
+}
+
+async function submitIntakeAnswer() {
+  intake.busy = true; error.value = ''
+  try {
+    const field = intake.currentQuestion.field
+    let answer = intake.answers[field]
+    // Проверяем что ответ не пустой (включая пустые массивы)
+    if (!isAnswerValid(answer)) throw new Error('Пожалуйста, ответьте на вопрос')
+
+    // Преобразуем ответ в правильный формат для backend
+    if (field === 'counter_value') {
+      // counter_value должен быть список (может быть несколько вариантов)
+      if (Array.isArray(answer)) {
+        answer = answer.map(v => {
+          const lower = v.toLowerCase()
+          if (lower.includes('дар')) return 'gift'
+          if (lower.includes('деньг')) return 'money'
+          if (lower.includes('обмен')) return 'barter'
+          if (lower.includes('балл')) return 'unit'
+          return 'gift'
+        })
+      } else {
+        // На случай если пришла одна строка
+        answer = [answer.toLowerCase().includes('дар') ? 'gift' :
+                  answer.toLowerCase().includes('деньг') ? 'money' :
+                  answer.toLowerCase().includes('обмен') ? 'barter' :
+                  answer.toLowerCase().includes('балл') ? 'unit' : 'gift']
+      }
+    } else if (field === 'object_level') {
+      // object_level должен быть число
+      answer = parseInt(answer) || null
+    } else if (field === 'when_type') {
+      // when_type преобразуем к нижнему регистру
+      answer = answer.toLowerCase().includes('разово') ? 'once' :
+               answer.toLowerCase().includes('периодич') ? 'period' :
+               answer.toLowerCase().includes('регулярно') ? 'regular' : answer
+    }
+
+    // Обновляем state
+    intake.state[field] = answer
+
+    // Получаем следующую волну вопросов
+    const clarifyResult = await api.clarifyIntake(intake.state)
+    console.log('Clarify result:', clarifyResult)
+
+    if (clarifyResult.stop_reason === 'ready_to_search') {
+      console.log('Ready to search, loading card from intake')
+      intake.open = false
+      await nextTick()
+      loadCardFromIntake()
+    } else if (clarifyResult.questions && clarifyResult.questions.length > 0) {
+      // Показываем следующий вопрос
+      console.log('Got', clarifyResult.questions.length, 'questions')
+      intake.currentQuestion = clarifyResult.questions[0]
+      intake.questions = clarifyResult.questions
+      intake.questionIndex += 1
+    } else {
+      // Нет больше вопросов
+      console.log('No more questions, loading card from intake')
+      intake.open = false
+      await nextTick()
+      loadCardFromIntake()
+    }
+  } catch (e) {
+    console.error('Error in submitIntakeAnswer:', e)
+    error.value = e.message
+  } finally { intake.busy = false }
+}
+
+function isAnswerValid(answer) {
+  if (!answer) return false
+  if (Array.isArray(answer)) {
+    return answer.length > 0  // Empty array is not valid
+  }
+  return true
+}
+
+function isSelected(variant) {
+  const selected = intake.answers[intake.currentQuestion.field]
+  if (Array.isArray(selected)) {
+    return selected.includes(variant)
+  }
+  return false
+}
+
+function toggleCounterValue(variant) {
+  // Инициализируем как пустой массив если нет
+  if (!Array.isArray(intake.answers[intake.currentQuestion.field])) {
+    intake.answers[intake.currentQuestion.field] = []
+  }
+
+  const selected = intake.answers[intake.currentQuestion.field]
+  const index = selected.indexOf(variant)
+
+  if (index > -1) {
+    // Уже выбран — удаляем
+    selected.splice(index, 1)
+  } else {
+    // Не выбран — добавляем
+    selected.push(variant)
+  }
+
+  // Показываем уведомление если выбран обмен на потребности
+  if (variant.includes('потребности') && index === -1) {
+    if (activeAsks.length > 0) {
+      notice.value = `Обмен включен. Ваши потребности: ${activeAsks.map(a => a.title).join(', ')}`
+    } else {
+      notice.value = 'Добавьте потребности, чтобы обмениваться ресурсами'
+    }
+  }
+}
+
+function selectIntakeVariant(variant) {
+  intake.answers[intake.currentQuestion.field] = variant
+}
+
+function loadCardFromIntake() {
+  console.log('→ loadCardFromIntake START')
+  console.log('  intake.type:', intake.type)
+  console.log('  intake.state:', intake.state)
+
+  wiz.type = intake.type; wiz.editId = null
+
+  // Если категория не определена из intake, мастер попросит выбрать её
+  const category = intake.state?.category || ''
+
+  wiz.draft = {
+    category: category,
+    title: intake.state?.object_text || '',
+    description: intake.state?.object_text || '',
+    impact: intake.state?.impact || '',
+    fields: {
+      level: intake.state?.object_level,
+      where: intake.state?.where_geo || intake.state?.where_mode
+    },
+    ideal: '',
+    term: '',
+    customDate: '',
+    amount_money: intake.state?.amount_money || '',
+    amount_points: intake.state?.amount_points || ''
+  }
+
+  console.log('  wiz.type:', wiz.type)
+  console.log('  wiz.draft.category:', wiz.draft.category)
+
+  wiz.step = category ? 1 : 0
+  wiz.open = true
+
+  console.log('✓ Wizard opened at step', wiz.step)
+  console.log('→ loadCardFromIntake END')
 }
 
 function startEdit(r) {
@@ -265,7 +511,7 @@ function finishWizard() {
   } else {
     form.resources.push({ id: `${Date.now()}${Math.floor(Math.random() * 1000)}`, ...data })
   }
-  wiz.open = false; wiz.editId = null; extractQuestions.value = []; save()
+  wiz.open = false; wiz.editId = null; extractQuestions.value = []; extractProvider.value = ''; save()
   // Бартер: обмен требует описанных потребностей.
   const barter = termList({ fields: data.fields }).some(x => /обмен|бартер/i.test(x))
   if (barter) {
@@ -294,9 +540,21 @@ function itemFields(r) {
 }
 // Иконки параметров и условий — чтобы карточка читалась «глазами», а не текстом.
 const FIELD_ICON = { level: '🎚', volume: '⏳', when: '📅', urgency: '⏰', where: '📍',
-  condition: '🏷', purpose: '🎯', capacity: '📐', schedule: '🗓', topic: '📚', format: '🎓', channel: '💬' }
+  condition: '🏷', purpose: '🎯', capacity: '📐', schedule: '🗓', topic: '📚', format: '🎓', channel: '💬', size: '📏', location: '🗺', target_level: '👥' }
+const CRITICAL_FIELDS = {
+  time_skill: ['level', 'where'],
+  thing: ['condition', 'where'],
+  space: ['capacity', 'schedule'],
+  knowledge: ['topic', 'format'],
+}
 function fieldIcon(k) { return FIELD_ICON[k] || '•' }
-function keyFields(r) { return itemFields(r).filter(f => f.key !== 'terms' && f.key !== 'where') }
+// Критические поля для саморезации (выделяются на карточке)
+function criticalFields(r) {
+  const critical = CRITICAL_FIELDS[r.category] || []
+  return itemFields(r).filter(f => critical.includes(f.key))
+}
+// Прочие важные поля
+function keyFields(r) { return itemFields(r).filter(f => f.key !== 'terms' && f.key !== 'where' && !CRITICAL_FIELDS[r.category]?.includes(f.key)) }
 function termIcon(v) {
   const s = (v || '').toLowerCase()
   if (s.includes('дар') || s.includes('подар')) return '🎁'
@@ -359,9 +617,14 @@ function onPhoto(e) {
 
     <!-- Вход -->
     <section v-if="!loggedIn" class="auth">
+      <img class="logo" src="/icon.svg" alt="Ресурс" width="96" height="96" />
       <div class="brand">Ресурс</div>
       <p class="tag">синергия ресурсов и потребностей</p>
       <div class="card">
+        <button v-if="yandexLogin" class="ya" @click="loginWithYandex">
+          <span class="ya-ic">Я</span> Войти через Яндекс
+        </button>
+        <div v-if="yandexLogin" class="or"><span>или по почте</span></div>
         <div class="lbl">{{ auth.mode === 'register' ? 'Регистрация' : 'Вход' }}</div>
         <input v-model="auth.email" type="email" placeholder="Email" />
         <input v-model="auth.password" type="password" placeholder="Пароль (от 6 символов)" />
@@ -377,27 +640,58 @@ function onPhoto(e) {
       <section v-if="tab === 'resources'" class="block">
         <div class="bhead"><span class="btitle">🤝 Ресурсы</span>
           <div class="bactions">
-            <button class="add gold-add" @click="openTell('give')">🎤 Рассказать</button>
+            <button class="add gold-add" @click="openTell('give')">🎤 Разместить ресурс</button>
             <button class="add" @click="startWizard('give')">Вручную</button>
           </div>
         </div>
         <p v-if="!gives.length" class="empty">Пока пусто. Что готовы дать, обменять или продать?</p>
-        <div v-for="r in gives" :key="r.id" class="rescard">
+        <div v-for="r in gives" :key="r.id" class="infographic-card">
           <button class="xbtn" @click="removeItem(r.id)">✕</button>
-          <div class="rk">Ресурс · {{ catLabel(r.category) }}</div>
-          <div class="rtitle3">{{ CATS[r.category]?.icon }} {{ r.title }}</div>
-          <div v-if="r.description" class="rdesc">{{ r.description }}</div>
-          <div class="zones">
-            <div class="zone"><span class="zk">Условия</span><span class="zv"><template v-if="termList(r).length"><span v-for="t in termList(r)" :key="t" class="tchip">{{ termIcon(t) }} {{ t }}</span></template><template v-else>—</template><b v-if="r.amount_money"> · 💰 {{ r.amount_money }}</b><b v-if="r.amount_points"> · ⭐ {{ r.amount_points }} б.</b><b v-if="r.amount"> · {{ r.amount }}</b></span></div>
-            <div v-if="r.fields?.where" class="zone"><span class="zk">Где</span><span class="zv">📍 {{ r.fields.where }}</span></div>
-            <div v-if="r.ideal" class="zone"><span class="zk">Для кого</span><span class="zv">{{ r.ideal }}</span></div>
+          <div class="card-type">Ресурс</div>
+          <div class="card-main">
+            <div class="card-icon">{{ CATS[r.category]?.icon }}</div>
+            <div class="card-title">{{ r.title }}</div>
+            <div v-if="r.description" class="card-desc">{{ r.description }}</div>
           </div>
-          <template v-if="expanded[r.id]">
-            <div class="rgrid"><span v-for="f in keyFields(r)" :key="f.key">{{ fieldIcon(f.key) }} {{ f.value }}</span></div>
-          </template>
-          <div class="cardfoot">
-            <button class="more" @click="toggle(r.id)">{{ expanded[r.id] ? 'свернуть' : 'подробнее' }}</button>
-            <button class="more" @click="startEdit(r)">изменить</button>
+          <div class="card-critical">
+            <div class="critical-grid">
+              <template v-for="f in criticalFields(r)" :key="f.key">
+                <div class="critical-param">
+                  <span class="param-icon">{{ fieldIcon(f.key) }}</span>
+                  <span class="param-value">{{ f.value }}</span>
+                </div>
+              </template>
+            </div>
+          </div>
+          <div v-if="keyFields(r).length" class="card-params">
+            <div class="param-grid">
+              <template v-for="f in keyFields(r)" :key="f.key">
+                <div class="param">
+                  <span class="param-icon">{{ fieldIcon(f.key) }}</span>
+                  <span class="param-value">{{ f.value }}</span>
+                </div>
+              </template>
+            </div>
+          </div>
+          <div class="card-terms">
+            <div class="term-label">Условия</div>
+            <div class="term-list">
+              <span v-if="termList(r).length" v-for="t in termList(r)" :key="t" class="term-badge">{{ termIcon(t) }} {{ t }}</span>
+              <span v-else class="term-badge">—</span>
+              <span v-if="r.amount_money" class="amount-badge">💰 {{ r.amount_money }} ₽</span>
+              <span v-if="r.amount_points" class="amount-badge">⭐ {{ r.amount_points }}</span>
+            </div>
+          </div>
+          <div v-if="r.fields?.where" class="card-location">
+            <span class="loc-icon">📍</span>
+            <span>{{ r.fields.where }}</span>
+          </div>
+          <div v-if="r.ideal" class="card-ideal">
+            <span class="ideal-label">Идеально для</span>
+            <span class="ideal-text">{{ r.ideal }}</span>
+          </div>
+          <div class="card-actions">
+            <button class="action-btn" @click="startEdit(r)">✏️ Изменить</button>
           </div>
         </div>
       </section>
@@ -407,38 +701,75 @@ function onPhoto(e) {
         <section class="block">
           <div class="bhead"><span class="btitle">🙏 Потребности</span>
             <div class="bactions">
-              <button class="add gold-add" @click="openTell('ask')">🎤 Рассказать</button>
+              <button class="add gold-add" @click="openTell('ask')">🎤 Разместить потребность</button>
               <button class="add" @click="startWizard('ask')">Вручную</button>
             </div>
           </div>
           <p v-if="!activeAsks.length" class="empty">Пока пусто. Что вам нужно, ищете или хотите купить?</p>
-          <div v-for="r in activeAsks" :key="r.id" class="rescard">
+          <div v-for="r in activeAsks" :key="r.id" class="infographic-card">
             <button class="xbtn" @click="removeItem(r.id)">✕</button>
-            <div class="rk">Потребность · {{ catLabel(r.category) }}</div>
-            <div class="rtitle3">{{ CATS[r.category]?.icon }} {{ r.title }}</div>
-            <div v-if="r.description" class="rdesc">{{ r.description }}</div>
-            <div class="zones">
-              <div class="zone"><span class="zk">Условия</span><span class="zv"><template v-if="termList(r).length"><span v-for="t in termList(r)" :key="t" class="tchip">{{ termIcon(t) }} {{ t }}</span></template><template v-else>—</template><b v-if="r.amount_money"> · 💰 {{ r.amount_money }}</b><b v-if="r.amount_points"> · ⭐ {{ r.amount_points }} б.</b><b v-if="r.amount"> · {{ r.amount }}</b></span></div>
-              <div v-if="r.fields?.where" class="zone"><span class="zk">Где</span><span class="zv">📍 {{ r.fields.where }}</span></div>
-              <div v-if="r.deadline" class="zone"><span class="zk">Срок</span><span class="zv">⏳ до {{ fmtDate(r.deadline) }}</span></div>
-              <div v-if="r.impact" class="zone"><span class="zk">Польза</span><span class="zv">🌍 {{ r.impact }}</span></div>
+            <div class="card-type">Потребность</div>
+            <div class="card-main">
+              <div class="card-icon">{{ CATS[r.category]?.icon }}</div>
+              <div class="card-title">{{ r.title }}</div>
+              <div v-if="r.description" class="card-desc">{{ r.description }}</div>
             </div>
-            <template v-if="expanded[r.id]">
-              <div class="rgrid"><span v-for="f in keyFields(r)" :key="f.key">{{ fieldIcon(f.key) }} {{ f.value }}</span></div>
-            </template>
-            <div class="cardfoot">
-              <button class="more" @click="toggle(r.id)">{{ expanded[r.id] ? 'свернуть' : 'подробнее' }}</button>
-              <button class="more" @click="startEdit(r)">изменить</button>
+            <div class="card-critical">
+              <div class="critical-grid">
+                <template v-for="f in criticalFields(r)" :key="f.key">
+                  <div class="critical-param">
+                    <span class="param-icon">{{ fieldIcon(f.key) }}</span>
+                    <span class="param-value">{{ f.value }}</span>
+                  </div>
+                </template>
+              </div>
+            </div>
+            <div v-if="keyFields(r).length" class="card-params">
+              <div class="param-grid">
+                <template v-for="f in keyFields(r)" :key="f.key">
+                  <div class="param">
+                    <span class="param-icon">{{ fieldIcon(f.key) }}</span>
+                    <span class="param-value">{{ f.value }}</span>
+                  </div>
+                </template>
+              </div>
+            </div>
+            <div class="card-terms">
+              <div class="term-label">Условия</div>
+              <div class="term-list">
+                <span v-if="termList(r).length" v-for="t in termList(r)" :key="t" class="term-badge">{{ termIcon(t) }} {{ t }}</span>
+                <span v-else class="term-badge">—</span>
+                <span v-if="r.amount_money" class="amount-badge">💰 {{ r.amount_money }} ₽</span>
+                <span v-if="r.amount_points" class="amount-badge">⭐ {{ r.amount_points }}</span>
+              </div>
+            </div>
+            <div v-if="r.fields?.where" class="card-location">
+              <span class="loc-icon">📍</span>
+              <span>{{ r.fields.where }}</span>
+            </div>
+            <div v-if="r.deadline" class="card-deadline">
+              <span class="deadline-icon">⏳</span>
+              <span>до {{ fmtDate(r.deadline) }}</span>
+            </div>
+            <div v-if="r.impact" class="card-impact">
+              <span class="impact-label">Польза мира</span>
+              <span class="impact-text">{{ r.impact }}</span>
+            </div>
+            <div class="card-actions">
+              <button class="action-btn" @click="startEdit(r)">✏️ Изменить</button>
             </div>
           </div>
         </section>
         <section v-if="archivedAsks.length" class="block">
           <div class="bhead"><span class="btitle">🗄 Архив</span></div>
           <p class="empty">Срок вышел — не в общей ленте, но остаются для будущего мэтча.</p>
-          <div v-for="r in archivedAsks" :key="r.id" class="rescard arch">
+          <div v-for="r in archivedAsks" :key="r.id" class="infographic-card archived">
             <button class="xbtn" @click="removeItem(r.id)">✕</button>
-            <div class="rk">Потребность · {{ catLabel(r.category) }} · архив</div>
-            <div class="rtitle2">{{ CATS[r.category]?.icon }} {{ r.title }}</div>
+            <div class="card-type">Потребность · архив</div>
+            <div class="card-main">
+              <div class="card-icon">{{ CATS[r.category]?.icon }}</div>
+              <div class="card-title">{{ r.title }}</div>
+            </div>
           </div>
         </section>
       </template>
@@ -497,16 +828,77 @@ function onPhoto(e) {
     <!-- Рассказать: наговорил всё → ИИ разложит по карточке -->
     <div v-if="tell.open" class="overlay" @click.self="tell.open = false">
       <div class="wizard">
-        <div class="wlbl">{{ tell.type === 'give' ? 'РЕСУРС' : 'ПОТРЕБНОСТЬ' }} · расскажите одним текстом</div>
-        <h3>Опишите голосом или текстом — ИИ разложит по карточке</h3>
-        <p class="hint">Наговорите всё сразу: что это, условия, где, для кого, сколько. Мастер откроется уже заполненным — проверите и поправите.</p>
+        <div class="wlbl">{{ tell.type === 'give' ? 'РАЗМЕСТИТЬ РЕСУРС' : 'РАЗМЕСТИТЬ ПОТРЕБНОСТЬ' }}</div>
+        <h3>{{ tell.type === 'give' ? 'Расскажи, что ты предлагаешь' : 'Расскажи, что тебе нужно' }}</h3>
+        <p class="hint">Главное — опиши так, чтобы человек сразу понял, можно ли это ему использовать. Что это, где, сколько человек, какие условия — всё можно наговорить разом. Если чего-то важного не хватит, мы спросим.</p>
+
+        <div class="tell-photo">
+          <div v-if="!tell.photo" class="photo-placeholder">
+            <input type="file" accept="image/*" @change="handlePhotoUpload" style="display: none" ref="photoInput" />
+            <button class="ghost" @click="$refs.photoInput?.$el?.click?.() || document.querySelector('input[type=file]')?.click?.()">
+              📷 Добавить фото
+            </button>
+          </div>
+          <div v-else class="photo-preview">
+            <img :src="tell.photo" />
+            <button class="ghost" @click="tell.photo = null">✕ Удалить</button>
+          </div>
+        </div>
+
         <div class="row">
-          <textarea class="wiz-text" v-model="tell.text" rows="4" placeholder="Например: сдаю жильё у моря в Адлере на 3–5 дней, за баллы или деньги 5000 в сутки, вид на горы и море, для женщин и семейных пар…"></textarea>
+          <textarea class="wiz-text" v-model="tell.text" rows="4" placeholder="Например: крыша с видом на горы, подходит для йоги и обедов, вмещает до 10 человек. Или: я провожу хатха-йогу, опыт 5 лет, работаю с начинающими…"></textarea>
           <button v-if="voiceSupported" class="ghost mic" :class="{ rec: listeningField === 'tell' }" @click="listen('tell', t => tell.text = (tell.text ? tell.text + ' ' : '') + t)">{{ listeningField === 'tell' ? '⏹' : '🎤' }}</button>
         </div>
         <div class="wnav">
           <button class="ghost" @click="tell.open = false">Отмена</button>
-          <button class="gold" :disabled="tell.busy || !tell.text.trim()" @click="runExtract">{{ tell.busy ? 'Разбираю…' : 'Разобрать → карточка' }}</button>
+          <button class="gold" :disabled="tell.busy || !tell.text.trim()" @click="runIntakeExtract">{{ tell.busy ? 'Создаю…' : 'Создать карточку' }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Уточнение критичных полей карточки -->
+    <div v-if="clarification.open" class="overlay" @click.self="clarification.open = false">
+      <div class="wizard">
+        <div class="wlbl">Уточнение информации</div>
+        <h3>ИИ хочет уточнить кое-что важное</h3>
+        <div class="clarifications">
+          <div v-for="(pair, idx) in clarification.questionPairs" :key="idx" class="clarification-item">
+            <label>{{ pair.question }}</label>
+            <input v-model="clarification.answers[pair.field]" type="text" :placeholder="`Ответ ${idx + 1}`" />
+          </div>
+        </div>
+        <div class="wnav">
+          <button class="ghost" @click="clarification.open = false">Пропустить</button>
+          <button class="gold" :disabled="clarification.busy || !Object.values(clarification.answers).some(a => a)" @click="submitClarifications">{{ clarification.busy ? 'Обновляю…' : 'Готово' }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Новая система Intake (один вопрос за раз) -->
+    <div v-if="intake.open" class="overlay" @click.self="intake.open = false">
+      <div class="wizard">
+        <div class="wlbl">{{ intake.questionIndex + 1 }} из {{ intake.questions.length }}</div>
+        <h3>{{ intake.currentQuestion?.text }}</h3>
+        <p v-if="intake.currentQuestion?.explanation" class="hint">{{ intake.currentQuestion.explanation }}</p>
+
+        <!-- Варианты ответов -->
+        <div v-if="intake.currentQuestion?.variants" class="opts">
+          <!-- Множественный выбор для counter_value -->
+          <template v-if="intake.currentQuestion.field === 'counter_value'">
+            <button v-for="variant in intake.currentQuestion.variants" :key="variant" class="chip" :class="{ sel: isSelected(variant) }" @click="toggleCounterValue(variant)">✓ {{ variant }}</button>
+          </template>
+          <!-- Одиночный выбор для остальных -->
+          <template v-else>
+            <button v-for="variant in intake.currentQuestion.variants" :key="variant" class="chip" :class="{ sel: intake.answers[intake.currentQuestion.field] === variant }" @click="selectIntakeVariant(variant)">{{ variant }}</button>
+          </template>
+        </div>
+
+        <!-- Текстовый ввод (если нет вариантов) -->
+        <input v-else v-model="intake.answers[intake.currentQuestion?.field]" type="text" class="wiz-text" :placeholder="'Ответ...'" />
+
+        <div class="wnav">
+          <button class="ghost" @click="intake.open = false">Пропустить</button>
+          <button class="gold" :disabled="intake.busy || !isAnswerValid(intake.answers[intake.currentQuestion?.field])" @click="submitIntakeAnswer">{{ intake.busy ? 'Обновляю…' : 'Дальше' }}</button>
         </div>
       </div>
     </div>
@@ -516,7 +908,7 @@ function onPhoto(e) {
       <div class="wizard">
         <div class="dots"><i v-for="(s, i) in wsteps" :key="i" :class="{ on: i <= wiz.step }" /></div>
         <div class="wlbl">{{ wiz.type === 'give' ? 'РЕСУРС' : 'ПОТРЕБНОСТЬ' }} · {{ wiz.editId ? 'правка' : 'шаг ' + (wiz.step + 1) + ' из ' + wsteps.length }}</div>
-        <div v-if="extractQuestions.length" class="notice" style="margin: 6px 0 4px">ИИ уточняет: {{ extractQuestions.join(' · ') }}</div>
+        <div v-if="extractProvider === 'yandex'" class="wlbl" style="color: var(--gold); margin-top: 2px">разобрал: YandexGPT ✓</div>
         <h3>{{ cur.q }}</h3>
         <p v-if="cur.hint" class="hint">{{ cur.hint }}</p>
 
@@ -575,13 +967,22 @@ h3 { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; margin: 6
 .err { background: #2a1414; border: 1px solid #6b2b2b; color: #f2b8b8; padding: 10px 12px; border-radius: 10px; font-size: 14px; }
 .notice { background: rgba(217,180,91,.12); border: 1px solid var(--line); color: var(--gold); padding: 10px 12px; border-radius: 10px; font-size: 14px; cursor: pointer; }
 .auth { text-align: center; padding-top: 40px; }
+.logo { width: 96px; height: 96px; border-radius: 22px; margin-bottom: 6px; }
 .brand { font-family: Georgia, serif; font-size: 40px; letter-spacing: 1px;
   background: linear-gradient(180deg, var(--gold2), var(--gold)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .tag { color: var(--muted); letter-spacing: 1px; margin-top: 4px; }
-.card, .block, .rescard, .wizard { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; }
+.card, .block { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; }
+.wizard { background: var(--panel); border: 2px solid rgba(217,180,91,.5); border-radius: 18px; }
 .card { padding: 18px; margin-top: 16px; box-shadow: 0 0 40px rgba(0,0,0,.4); }
 .card.ai { border-color: rgba(217,180,91,.4); background: linear-gradient(180deg, rgba(217,180,91,.06), var(--panel)); }
 .lbl { text-transform: uppercase; letter-spacing: 2px; font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+.ya { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;
+  background: #fff; color: #1a1a1a; border: none; border-radius: 12px; padding: 13px;
+  font-size: 16px; font-weight: 600; cursor: pointer; }
+.ya-ic { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px;
+  background: #fc3f1d; color: #fff; font-family: Georgia, serif; font-weight: 700; font-size: 17px; }
+.or { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; margin: 14px 0; }
+.or::before, .or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
 .gold-t { color: var(--gold); }
 .hint { color: var(--muted); font-size: 14px; margin: 6px 0; } .hint.sm { font-size: 12px; }
 .head { display: flex; align-items: center; gap: 14px; padding: 6px 2px 10px; }
@@ -602,24 +1003,43 @@ h3 { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; margin: 6
 .bhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .btitle { font-family: Georgia, serif; font-size: 20px; }
 .empty { color: var(--muted); font-size: 14px; }
-.rescard { position: relative; padding: 16px 16px 10px; margin-top: 12px;
-  border: 1px solid rgba(217,180,91,.4); box-shadow: 0 10px 28px rgba(0,0,0,.45); }
-.rk { font-size: 10px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--gold); opacity: .85; margin-top: 14px; }
-.rescard > .rk:first-of-type { margin-top: 0; }
-.rtitle2 { font-size: 17px; color: #fff; margin: 4px 0 2px; }
-.rtitle3 { font-family: Georgia, serif; font-size: 20px; font-weight: 600; color: #fff; margin: 2px 0 6px; line-height: 1.25; }
-.zones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin-top: 12px; }
-.zone { display: flex; flex-direction: column; gap: 2px; }
-.zk { font-size: 9.5px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); opacity: .8; }
-.zv { font-size: 14px; color: var(--cream); }
-.rv { font-size: 16px; color: #fff; margin-top: 2px; }
-.rgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin-top: 14px; font-size: 13px; color: var(--cream); }
-.rsline { margin-top: 8px; font-size: 13px; color: var(--muted); }
-.rdesc { margin-top: 6px; font-size: 14px; color: var(--cream); opacity: .92; white-space: pre-wrap; line-height: 1.45; }
-.tchip { display: inline-block; margin-right: 12px; }
-.more { background: none; border: none; color: var(--muted); font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; padding: 10px 0 2px; margin: 0; }
-.rescard.arch { opacity: .55; }
-.cardfoot { display: flex; gap: 18px; align-items: center; }
+.infographic-card { position: relative; padding: 18px; margin-top: 12px;
+  border: 2px solid rgba(217,180,91,.65); border-radius: 16px;
+  background: linear-gradient(135deg, rgba(217,180,91,.08), rgba(217,180,91,.03));
+  box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+.infographic-card.archived { opacity: .5; }
+.card-type { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--gold); opacity: .7; margin-bottom: 10px; }
+.card-main { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.card-icon { font-size: 36px; line-height: 1; }
+.card-title { font-family: Georgia, serif; font-size: 22px; font-weight: 600; color: #fff; line-height: 1.2; }
+.card-desc { font-size: 13px; color: var(--cream); opacity: .85; line-height: 1.4; white-space: pre-wrap; }
+.card-critical { margin: 12px 0 8px; padding: 10px; background: rgba(217,180,91,.12); border-radius: 10px; border: 1px solid rgba(217,180,91,.4); }
+.critical-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.critical-param { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: rgba(217,180,91,.15); border-radius: 8px; border-left: 3px solid var(--gold); }
+.card-params { margin: 8px 0; }
+.param-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+.param { display: flex; align-items: center; gap: 8px; padding: 8px; background: rgba(217,180,91,.05); border-radius: 8px; border: 1px solid rgba(217,180,91,.2); opacity: .85; }
+.param-icon { font-size: 18px; min-width: 20px; }
+.param-value { font-size: 13px; color: var(--cream); }
+.card-terms { margin: 12px 0; padding: 10px; background: rgba(217,180,91,.08); border-radius: 8px; border-left: 3px solid var(--gold); }
+.term-label { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); opacity: .7; margin-bottom: 6px; }
+.term-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.term-badge { display: inline-block; padding: 5px 10px; background: rgba(217,180,91,.15); border: 1px solid var(--gold); border-radius: 6px; font-size: 12px; color: var(--gold); }
+.amount-badge { display: inline-block; padding: 5px 10px; background: rgba(217,180,91,.2); border: 1px solid var(--gold); border-radius: 6px; font-size: 12px; color: var(--gold); font-weight: 600; }
+.card-location { display: flex; align-items: center; gap: 8px; margin: 10px 0; font-size: 13px; color: var(--cream); }
+.loc-icon { font-size: 16px; }
+.card-deadline { display: flex; align-items: center; gap: 8px; margin: 10px 0; font-size: 13px; color: var(--cream); }
+.deadline-icon { font-size: 16px; }
+.card-ideal { display: flex; flex-direction: column; gap: 4px; margin: 10px 0; padding: 10px; background: rgba(217,180,91,.06); border-radius: 8px; }
+.ideal-label { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); opacity: .7; }
+.ideal-text { font-size: 13px; color: var(--cream); }
+.card-impact { display: flex; flex-direction: column; gap: 4px; margin: 10px 0; padding: 10px; background: rgba(217,180,91,.06); border-radius: 8px; }
+.impact-label { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); opacity: .7; }
+.impact-text { font-size: 13px; color: var(--cream); }
+.card-actions { display: flex; gap: 10px; margin-top: 14px; }
+.action-btn { background: transparent; border: 1px solid var(--gold); color: var(--gold); padding: 8px 12px; font-size: 12px;
+  border-radius: 6px; cursor: pointer; transition: all .2s; }
+.action-btn:hover { background: rgba(217,180,91,.1); }
 .wiz-text { min-height: 52px; line-height: 1.4; resize: none; overflow: hidden; }
 .row .mic { align-self: flex-start; }
 .tabbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; width: 100%; max-width: 620px;
@@ -631,12 +1051,12 @@ h3 { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; margin: 6
 .tabbar button.on { color: var(--gold); }
 .tabbar button.on span { opacity: 1; }
 .xbtn { position: absolute; top: 8px; right: 8px; background: none; border: none; color: var(--muted); font-size: 15px; cursor: pointer; }
-input, textarea { display: block; width: 100%; padding: 11px; margin-top: 8px; background: var(--input); border: 1px solid var(--line); border-radius: 10px; color: var(--cream); font: inherit; }
+input, textarea { display: block; width: 100%; padding: 11px; margin-top: 8px; background: var(--input); border: 1px solid rgba(217,180,91,.3); border-radius: 10px; color: var(--cream); font: inherit; }
 input::placeholder, textarea::placeholder { color: #5f5947; }
 button { cursor: pointer; border-radius: 10px; font: inherit; padding: 10px 16px; margin-top: 10px; }
 .gold { background: linear-gradient(180deg, var(--gold2), var(--gold)); color: #241d09; border: none; font-weight: 600; }
 .gold:disabled { opacity: .4; }
-.ghost { background: transparent; border: 1px solid var(--line); color: var(--cream); }
+.ghost { background: transparent; border: 1px solid rgba(217,180,91,.3); color: var(--cream); }
 .ghost.rec { border-color: #e23; color: #f77; }
 .add { background: transparent; border: 1px solid var(--gold); color: var(--gold); padding: 6px 12px; margin: 0; font-size: 13px; }
 .bactions { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -656,4 +1076,13 @@ a { color: var(--gold); display: inline-block; margin-top: 12px; font-size: 14px
 .wlbl { font-size: 11px; letter-spacing: 2px; color: var(--muted); }
 .opts { margin: 6px 0; }
 .wnav { display: flex; justify-content: space-between; margin-top: 14px; }
+.tell-photo { margin: 12px 0; }
+.photo-placeholder { text-align: center; padding: 12px; background: rgba(255,215,0,.05); border-radius: 8px; }
+.photo-preview { position: relative; margin: 12px 0; }
+.photo-preview img { max-width: 100%; max-height: 200px; border-radius: 8px; }
+.photo-preview button { position: absolute; top: 4px; right: 4px; padding: 4px 8px; font-size: 12px; }
+.clarifications { margin: 12px 0; display: flex; flex-direction: column; gap: 12px; }
+.clarification-item { display: flex; flex-direction: column; gap: 4px; }
+.clarification-item label { font-size: 13px; color: var(--gold); font-weight: 500; }
+.clarification-item input { margin-top: 4px; }
 </style>

@@ -61,3 +61,62 @@ class AssistOut(BaseModel):
     draft: ProfileData  # предложенные ИИ значения полей (черновик, редактируемый)
     questions: list[AssistQuestion] = Field(default_factory=list)
     provider: str  # "claude" | "local"
+
+
+# --- Карточка ресурса/потребности ---
+class CardDraft(BaseModel):
+    category: str = ""
+    title: str = ""
+    description: str = ""
+    fields: dict = Field(default_factory=dict)
+    amount_money: str = ""
+    amount_points: str = ""
+    ideal: str = ""
+    impact: str = ""
+    questions: list[str] = Field(default_factory=list)
+    questions_map: dict = Field(default_factory=dict)  # field_name -> question_text
+    provider: str = ""
+
+
+class ClarificationsIn(BaseModel):
+    draft: CardDraft  # черновик карточки
+    clarifications: dict  # ответы на уточняющие вопросы: {field_name: answer}
+
+
+# --- Новая система Intake (две независимые модели) ---
+class IntakeExtractIn(BaseModel):
+    text: str  # свободный текст про ресурс/потребность
+    current_state: dict | None = None  # опционально, текущее состояние для обновления
+
+
+class IntakeExtractOut(BaseModel):
+    mode: str | None  # "resource" | "need"
+    category: str | None  # "skill" | "thing" | "space" | "knowledge"
+    object_text: str | None  # описание объекта
+    object_level: int | None  # уровень (зависит от категории)
+    transfer_form: str | None  # "permanent" | "temporary" (для thing/space)
+    when_type: str | None  # "once" | "period" | "regular"
+    when_window: str | None  # "по выходным, 3 раза в неделю"
+    urgency: str | None  # "urgent" | "week" | "relaxed"
+    where_mode: str | None  # "online" | "offline"
+    where_geo: str | None  # "м.Студенческая, Москва"
+    where_side: str | None  # "mine" | "yours" | "neutral"
+    counter_value: list[str] | None  # ["gift", "money", "barter", "unit"]
+    priority_fields: list[str] | None  # критичные поля для этого типа
+    evidence: dict = Field(default_factory=dict)  # field -> дословный фрагмент
+
+
+class IntakeQuestion(BaseModel):
+    field: str  # название поля
+    text: str  # текст вопроса
+    explanation: str  # зачем спрашиваю
+    variants: list[str]  # предложенные варианты (2-5)
+
+
+class IntakeClarifyIn(BaseModel):
+    state: IntakeExtractOut  # результат extract_intake
+
+
+class IntakeClarifyOut(BaseModel):
+    questions: list[IntakeQuestion]  # max 3 вопроса по приоритету
+    stop_reason: str | None  # "ready_to_search" | "need_more_info" | None
