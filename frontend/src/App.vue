@@ -730,7 +730,7 @@ function onPhoto(e) {
         </div>
         <div class="wnav">
           <button class="ghost" @click="tell.open = false">Отмена</button>
-          <button class="gold" :disabled="tell.busy || !tell.text.trim()" @click="runExtract">{{ tell.busy ? 'Создаю…' : 'Создать карточку' }}</button>
+          <button class="gold" :disabled="tell.busy || !tell.text.trim()" @click="runIntakeExtract">{{ tell.busy ? 'Создаю…' : 'Создать карточку' }}</button>
         </div>
       </div>
     </div>
