@@ -255,11 +255,23 @@ async function submitIntakeAnswer() {
 
     // Преобразуем ответ в правильный формат для backend
     if (field === 'counter_value') {
-      // counter_value должен быть список
-      answer = [answer.toLowerCase().includes('дар') ? 'gift' :
-                answer.toLowerCase().includes('деньг') ? 'money' :
-                answer.toLowerCase().includes('обмен') ? 'barter' :
-                answer.toLowerCase().includes('балл') ? 'unit' : 'gift']
+      // counter_value должен быть список (может быть несколько вариантов)
+      if (Array.isArray(answer)) {
+        answer = answer.map(v => {
+          const lower = v.toLowerCase()
+          if (lower.includes('дар')) return 'gift'
+          if (lower.includes('деньг')) return 'money'
+          if (lower.includes('обмен')) return 'barter'
+          if (lower.includes('балл')) return 'unit'
+          return 'gift'
+        })
+      } else {
+        // На случай если пришла одна строка
+        answer = [answer.toLowerCase().includes('дар') ? 'gift' :
+                  answer.toLowerCase().includes('деньг') ? 'money' :
+                  answer.toLowerCase().includes('обмен') ? 'barter' :
+                  answer.toLowerCase().includes('балл') ? 'unit' : 'gift']
+      }
     } else if (field === 'object_level') {
       // object_level должен быть число
       answer = parseInt(answer) || null
@@ -292,15 +304,42 @@ async function submitIntakeAnswer() {
   } catch (e) { error.value = e.message } finally { intake.busy = false }
 }
 
-function selectIntakeVariant(variant) {
-  // Если это "В обмен на потребности" — показываем мини-список потребностей
-  if (variant.includes('потребности')) {
+function isSelected(variant) {
+  const selected = intake.answers[intake.currentQuestion.field]
+  if (Array.isArray(selected)) {
+    return selected.includes(variant)
+  }
+  return false
+}
+
+function toggleCounterValue(variant) {
+  // Инициализируем как пустой массив если нет
+  if (!Array.isArray(intake.answers[intake.currentQuestion.field])) {
+    intake.answers[intake.currentQuestion.field] = []
+  }
+
+  const selected = intake.answers[intake.currentQuestion.field]
+  const index = selected.indexOf(variant)
+
+  if (index > -1) {
+    // Уже выбран — удаляем
+    selected.splice(index, 1)
+  } else {
+    // Не выбран — добавляем
+    selected.push(variant)
+  }
+
+  // Показываем уведомление если выбран обмен на потребности
+  if (variant.includes('потребности') && index === -1) {
     if (activeAsks.length > 0) {
-      notice.value = `Вы выбрали обмен. Ваши потребности: ${activeAsks.map(a => a.title).join(', ')}`
+      notice.value = `Обмен включен. Ваши потребности: ${activeAsks.map(a => a.title).join(', ')}`
     } else {
       notice.value = 'Добавьте потребности, чтобы обмениваться ресурсами'
     }
   }
+}
+
+function selectIntakeVariant(variant) {
   intake.answers[intake.currentQuestion.field] = variant
 }
 
@@ -792,7 +831,14 @@ function onPhoto(e) {
 
         <!-- Варианты ответов -->
         <div v-if="intake.currentQuestion?.variants" class="opts">
-          <button v-for="variant in intake.currentQuestion.variants" :key="variant" class="chip" :class="{ sel: intake.answers[intake.currentQuestion.field] === variant }" @click="selectIntakeVariant(variant)">{{ variant }}</button>
+          <!-- Множественный выбор для counter_value -->
+          <template v-if="intake.currentQuestion.field === 'counter_value'">
+            <button v-for="variant in intake.currentQuestion.variants" :key="variant" class="chip" :class="{ sel: isSelected(variant) }" @click="toggleCounterValue(variant)">✓ {{ variant }}</button>
+          </template>
+          <!-- Одиночный выбор для остальных -->
+          <template v-else>
+            <button v-for="variant in intake.currentQuestion.variants" :key="variant" class="chip" :class="{ sel: intake.answers[intake.currentQuestion.field] === variant }" @click="selectIntakeVariant(variant)">{{ variant }}</button>
+          </template>
         </div>
 
         <!-- Текстовый ввод (если нет вариантов) -->
