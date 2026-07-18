@@ -616,7 +616,7 @@ function onPhoto(e) {
       <section v-if="tab === 'resources'" class="block">
         <div class="bhead"><span class="btitle">🤝 Ресурсы</span>
           <div class="bactions">
-            <button class="add gold-add" @click="openTell('give')">🎤 Рассказать</button>
+            <button class="add gold-add" @click="openTell('give')">🎤 Разместить ресурс</button>
             <button class="add" @click="startWizard('give')">Вручную</button>
           </div>
         </div>
@@ -677,7 +677,7 @@ function onPhoto(e) {
         <section class="block">
           <div class="bhead"><span class="btitle">🙏 Потребности</span>
             <div class="bactions">
-              <button class="add gold-add" @click="openTell('ask')">🎤 Рассказать</button>
+              <button class="add gold-add" @click="openTell('ask')">🎤 Разместить потребность</button>
               <button class="add" @click="startWizard('ask')">Вручную</button>
             </div>
           </div>
@@ -804,8 +804,8 @@ function onPhoto(e) {
     <!-- Рассказать: наговорил всё → ИИ разложит по карточке -->
     <div v-if="tell.open" class="overlay" @click.self="tell.open = false">
       <div class="wizard">
-        <div class="wlbl">{{ tell.type === 'give' ? 'РЕСУРС' : 'ПОТРЕБНОСТЬ' }} · расскажите одним текстом</div>
-        <h3>Расскажи, что ты предлагаешь (или ищешь)</h3>
+        <div class="wlbl">{{ tell.type === 'give' ? 'РАЗМЕСТИТЬ РЕСУРС' : 'РАЗМЕСТИТЬ ПОТРЕБНОСТЬ' }}</div>
+        <h3>{{ tell.type === 'give' ? 'Расскажи, что ты предлагаешь' : 'Расскажи, что тебе нужно' }}</h3>
         <p class="hint">Главное — опиши так, чтобы человек сразу понял, можно ли это ему использовать. Что это, где, сколько человек, какие условия — всё можно наговорить разом. Если чего-то важного не хватит, мы спросим.</p>
 
         <div class="tell-photo">
