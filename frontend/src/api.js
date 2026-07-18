@@ -32,6 +32,11 @@ export const api = {
   assist: (text) => request('POST', '/profile/assist', { text }),
   extract: (text, kind) => request('POST', '/profile/extract', { text, kind }),
   clarify: (draft, clarifications) => request('POST', '/profile/clarify', { draft, clarifications }),
+
+  // Новая система Intake (две независимые модели)
+  extractIntake: (text, currentState) => request('POST', '/profile/extract-intake', { text, current_state: currentState }),
+  clarifyIntake: (state) => request('POST', '/profile/clarify-intake', { state }),
+
   getQuestions: () => request('GET', '/questions'),
   getConfig: () => request('GET', '/config'),
 }
