@@ -276,7 +276,11 @@ def clarify_intake(state: dict) -> dict:
         current_value = state.get(field)
 
         # Пропускаем если уже заполнено
-        if current_value is not None and current_value != "":
+        # Для массивов проверяем что они не пусты
+        if isinstance(current_value, list):
+            if len(current_value) > 0:
+                continue
+        elif current_value is not None and current_value != "":
             continue
 
         # Генерируем вопрос

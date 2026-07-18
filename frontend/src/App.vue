@@ -251,7 +251,8 @@ async function submitIntakeAnswer() {
   try {
     const field = intake.currentQuestion.field
     let answer = intake.answers[field]
-    if (!answer) throw new Error('Пожалуйста, ответьте на вопрос')
+    // Проверяем что ответ не пустой (включая пустые массивы)
+    if (!isAnswerValid(answer)) throw new Error('Пожалуйста, ответьте на вопрос')
 
     // Преобразуем ответ в правильный формат для backend
     if (field === 'counter_value') {
