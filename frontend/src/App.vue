@@ -292,6 +292,18 @@ async function submitIntakeAnswer() {
   } catch (e) { error.value = e.message } finally { intake.busy = false }
 }
 
+function selectIntakeVariant(variant) {
+  // Если это "В обмен на потребности" — показываем мини-список потребностей
+  if (variant.includes('потребности')) {
+    if (activeAsks.length > 0) {
+      notice.value = `Вы выбрали обмен. Ваши потребности: ${activeAsks.map(a => a.title).join(', ')}`
+    } else {
+      notice.value = 'Добавьте потребности, чтобы обмениваться ресурсами'
+    }
+  }
+  intake.answers[intake.currentQuestion.field] = variant
+}
+
 function loadCardFromIntake() {
   // Загружаем карточку из intake state
   wiz.type = intake.type; wiz.editId = null
@@ -780,7 +792,7 @@ function onPhoto(e) {
 
         <!-- Варианты ответов -->
         <div v-if="intake.currentQuestion?.variants" class="opts">
-          <button v-for="variant in intake.currentQuestion.variants" :key="variant" class="chip" :class="{ sel: intake.answers[intake.currentQuestion.field] === variant }" @click="intake.answers[intake.currentQuestion.field] = variant">{{ variant }}</button>
+          <button v-for="variant in intake.currentQuestion.variants" :key="variant" class="chip" :class="{ sel: intake.answers[intake.currentQuestion.field] === variant }" @click="selectIntakeVariant(variant)">{{ variant }}</button>
         </div>
 
         <!-- Текстовый ввод (если нет вариантов) -->

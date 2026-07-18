@@ -384,7 +384,7 @@ def _generate_question(field: str, state: dict) -> dict | None:
     if field == "counter_value" and state.get("counter_value") is None:
         if mode == "resource":
             text = "Ты готов поделиться ресурсом:"
-            variants = ["В дар (бесплатно)", "За деньги", "В обмен на что-то", "За баллы в системе"]
+            variants = ["В дар (бесплатно)", "За деньги", "В обмен на потребности", "За баллы в системе"]
             explanation = "каким способом люди смогут получить твой ресурс"
         else:
             text = "Как ты готов(-а) получить нужное:"
