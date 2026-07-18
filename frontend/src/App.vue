@@ -287,21 +287,30 @@ async function submitIntakeAnswer() {
 
     // Получаем следующую волну вопросов
     const clarifyResult = await api.clarifyIntake(intake.state)
+    console.log('Clarify result:', clarifyResult)
 
     if (clarifyResult.stop_reason === 'ready_to_search') {
-      loadCardFromIntake()
+      console.log('Ready to search, loading card from intake')
       intake.open = false
+      await nextTick()
+      loadCardFromIntake()
     } else if (clarifyResult.questions && clarifyResult.questions.length > 0) {
       // Показываем следующий вопрос
+      console.log('Got', clarifyResult.questions.length, 'questions')
       intake.currentQuestion = clarifyResult.questions[0]
       intake.questions = clarifyResult.questions
       intake.questionIndex += 1
     } else {
       // Нет больше вопросов
-      loadCardFromIntake()
+      console.log('No more questions, loading card from intake')
       intake.open = false
+      await nextTick()
+      loadCardFromIntake()
     }
-  } catch (e) { error.value = e.message } finally { intake.busy = false }
+  } catch (e) {
+    console.error('Error in submitIntakeAnswer:', e)
+    error.value = e.message
+  } finally { intake.busy = false }
 }
 
 function isAnswerValid(answer) {
@@ -353,12 +362,17 @@ function selectIntakeVariant(variant) {
 
 function loadCardFromIntake() {
   // Загружаем карточку из intake state
+  console.log('loadCardFromIntake: intake.state=', intake.state)
   wiz.type = intake.type; wiz.editId = null
+
+  // Если категория не определена из intake, мастер попросит выбрать её
+  const category = intake.state.category || ''
+
   wiz.draft = {
-    category: intake.state.category || '',
+    category: category,
     title: intake.state.object_text || '',
     description: intake.state.object_text || '',
-    impact: '',
+    impact: intake.state.impact || '',
     fields: {
       level: intake.state.object_level,
       where: intake.state.where_geo || intake.state.where_mode
@@ -366,11 +380,16 @@ function loadCardFromIntake() {
     ideal: '',
     term: '',
     customDate: '',
-    amount_money: '',
-    amount_points: ''
+    amount_money: intake.state.amount_money || '',
+    amount_points: intake.state.amount_points || ''
   }
-  wiz.step = wiz.draft.category ? 1 : 0
+
+  console.log('loadCardFromIntake: wiz.draft=', wiz.draft)
+
+  wiz.step = category ? 1 : 0
   wiz.open = true
+
+  console.log('Opening wizard at step', wiz.step)
 }
 
 function startEdit(r) {
