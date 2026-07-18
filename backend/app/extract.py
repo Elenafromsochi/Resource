@@ -312,20 +312,32 @@ def _generate_question(field: str, state: dict) -> dict | None:
     if category is None:
         return None
 
-    # OBJECT_LEVEL (специфичный для категории)
+    # OBJECT_LEVEL (специфичный для категории, зеркальные формулировки)
     if field == "object_level" and state.get("object_level") is None:
         if category == "skill":
-            text = "Какой уровень опыта?" if mode == "resource" else "Какой уровень нужен?"
-            variants = ["1-2 года (любитель)", "3-5 лет", "6+ лет (профи)"]
+            if mode == "resource":
+                text = "Какой у тебя уровень опыта?"
+                variants = ["Новичок (1-2 года)", "Уверенный (3-5 лет)", "Профи (6+ лет)"]
+            else:
+                text = "Какой уровень мастера тебе нужен?"
+                variants = ["Любой", "Уверенный минимум", "Профи обязательно"]
         elif category == "thing":
-            text = "Какое состояние?" if mode == "resource" else "Какое минимальное состояние?"
-            variants = ["Новое", "Б/у отличное", "Б/у хорошее", "С дефектами"]
+            if mode == "resource":
+                text = "Какое состояние вещи?"
+                variants = ["Новое", "Как новое", "Отличное", "Хорошее", "С дефектами"]
+            else:
+                text = "Какое минимальное состояние тебе подойдёт?"
+                variants = ["Новое", "Как новое", "Отличное", "Хорошее", "Любое"]
         elif category == "space":
-            text = "Примерно сколько кв.м. или вместимость?"
+            text = "Сколько примерно площади?"
             variants = ["5-20 м²", "20-50 м²", "50-100 м²", "100+ м²"]
         elif category == "knowledge":
-            text = "Какой формат?" if mode == "resource" else "Какой формат нужен?"
-            variants = ["Краткий ответ", "Консультация", "Менторство", "Полный курс"]
+            if mode == "resource":
+                text = "Какой формат ты можешь дать?"
+                variants = ["Краткий ответ", "Консультация", "Менторство", "Полный курс"]
+            else:
+                text = "Какой формат тебе нужен?"
+                variants = ["Краткий ответ", "Консультация", "Менторство", "Полный курс"]
         else:
             return None
 
@@ -336,11 +348,15 @@ def _generate_question(field: str, state: dict) -> dict | None:
             "variants": variants,
         }
 
-    # WHEN_TYPE (для большинства категорий)
+    # WHEN_TYPE (для большинства категорий, зеркальные формулировки)
     if field == "when_type" and state.get("when_type") is None:
         if category in ["skill", "knowledge"]:
-            text = "Как часто?" if mode == "resource" else "Как часто нужно?"
-            variants = ["Разово, один раз", "Несколько раз периодически", "Регулярно"]
+            if mode == "resource":
+                text = "Как часто ты можешь это делать?"
+                variants = ["Разово", "Периодически", "Регулярно"]
+            else:
+                text = "Как часто тебе это нужно?"
+                variants = ["Разово", "Периодически", "Регулярно"]
             explanation = "расписание важно для координации"
         else:
             return None
@@ -364,15 +380,16 @@ def _generate_question(field: str, state: dict) -> dict | None:
             "variants": ["Москва, центр", "Москва, окраины", "МО (подмосковье)", "свой вариант"],
         }
 
-    # COUNTER_VALUE (условия оплаты/обмена)
+    # COUNTER_VALUE (условия оплаты/обмена, зеркальные формулировки)
     if field == "counter_value" and state.get("counter_value") is None:
         if mode == "resource":
-            text = "На какие условия?"
-            variants = ["Дар (бесплатно)", "Деньги", "Обмен", "За баллы"]
+            text = "Ты готов(-а) отдать это:"
+            variants = ["В дар (бесплатно)", "За деньги", "В обмен на что-то", "За баллы в системе"]
+            explanation = "каким способом люди могут получить твой ресурс"
         else:
-            text = "Какие условия тебе подходят?"
-            variants = ["Дар (ищу добрых людей)", "Готов платить", "Обмен", "За баллы"]
-        explanation = "это влияет на поиск совпадений"
+            text = "Ты готов(-а) получить это:"
+            variants = ["В дар от добрых людей", "Заплатив деньги", "В обмен на свое", "Потратив баллы"]
+            explanation = "каким способом ты можешь получить нужное"
 
         return {
             "field": "counter_value",

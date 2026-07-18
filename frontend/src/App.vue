@@ -249,11 +249,29 @@ async function runIntakeExtract() {
 async function submitIntakeAnswer() {
   intake.busy = true; error.value = ''
   try {
-    const answer = intake.answers[intake.currentQuestion.field]
+    const field = intake.currentQuestion.field
+    let answer = intake.answers[field]
     if (!answer) throw new Error('Пожалуйста, ответьте на вопрос')
 
-    // Обновляем state в зависимости от типа ответа
-    intake.state[intake.currentQuestion.field] = answer
+    // Преобразуем ответ в правильный формат для backend
+    if (field === 'counter_value') {
+      // counter_value должен быть список
+      answer = [answer.toLowerCase().includes('дар') ? 'gift' :
+                answer.toLowerCase().includes('деньг') ? 'money' :
+                answer.toLowerCase().includes('обмен') ? 'barter' :
+                answer.toLowerCase().includes('балл') ? 'unit' : 'gift']
+    } else if (field === 'object_level') {
+      // object_level должен быть число
+      answer = parseInt(answer) || null
+    } else if (field === 'when_type') {
+      // when_type преобразуем к нижнему регистру
+      answer = answer.toLowerCase().includes('разово') ? 'once' :
+               answer.toLowerCase().includes('периодич') ? 'period' :
+               answer.toLowerCase().includes('регулярно') ? 'regular' : answer
+    }
+
+    // Обновляем state
+    intake.state[field] = answer
 
     // Получаем следующую волну вопросов
     const clarifyResult = await api.clarifyIntake(intake.state)
