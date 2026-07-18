@@ -304,6 +304,14 @@ async function submitIntakeAnswer() {
   } catch (e) { error.value = e.message } finally { intake.busy = false }
 }
 
+function isAnswerValid(answer) {
+  if (!answer) return false
+  if (Array.isArray(answer)) {
+    return answer.length > 0  // Empty array is not valid
+  }
+  return true
+}
+
 function isSelected(variant) {
   const selected = intake.answers[intake.currentQuestion.field]
   if (Array.isArray(selected)) {
@@ -846,7 +854,7 @@ function onPhoto(e) {
 
         <div class="wnav">
           <button class="ghost" @click="intake.open = false">Пропустить</button>
-          <button class="gold" :disabled="intake.busy || !intake.answers[intake.currentQuestion?.field]" @click="submitIntakeAnswer">{{ intake.busy ? 'Обновляю…' : 'Дальше' }}</button>
+          <button class="gold" :disabled="intake.busy || !isAnswerValid(intake.answers[intake.currentQuestion?.field])" @click="submitIntakeAnswer">{{ intake.busy ? 'Обновляю…' : 'Дальше' }}</button>
         </div>
       </div>
     </div>
