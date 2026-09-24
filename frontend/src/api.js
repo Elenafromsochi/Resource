@@ -21,6 +21,23 @@ async function request(method, path, body) {
   return res.status === 204 ? null : res.json()
 }
 
+// Аудио уходит файлом, а не JSON, поэтому мимо request() — там свои заголовки.
+async function sendAudio(blob) {
+  const headers = {}
+  const token = getToken()
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
+  const form = new FormData()
+  form.append('file', blob, 'voice.webm')
+
+  const res = await fetch(`${BASE}/api/voice/transcribe`, { method: 'POST', headers, body: form })
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({}))
+    throw new Error(typeof detail.detail === 'string' ? detail.detail : `Ошибка ${res.status}`)
+  }
+  return res.json()
+}
+
 export const api = {
   register: (b) => request('POST', '/auth/register', b),
   login: (b) => request('POST', '/auth/login', b),
@@ -29,4 +46,6 @@ export const api = {
   assist: (text) => request('POST', '/profile/assist', { text }),
   extract: (text, kind) => request('POST', '/profile/extract', { text, kind }),
   getQuestions: () => request('GET', '/questions'),
+  voiceStatus: () => request('GET', '/voice/status'),
+  transcribe: (blob) => sendAudio(blob),
 }

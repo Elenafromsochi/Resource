@@ -15,7 +15,7 @@ async function submitAuth() {
   try {
     const fn = auth.mode === 'register' ? api.register : api.login
     const { access_token } = await fn({ email: auth.email, password: auth.password })
-    setToken(access_token); loggedIn.value = true; await loadProfile()
+    setToken(access_token); loggedIn.value = true; await loadProfile(); checkVoice()
   } catch (e) { error.value = e.message }
 }
 function logout() { setToken(null); loggedIn.value = false; profile.value = null }
@@ -30,7 +30,7 @@ async function loadProfile() {
   try { profile.value = await api.getProfile(); fill(profile.value) }
   catch (e) { logout(); error.value = 'Пожалуйста, войдите снова.' }
 }
-onMounted(() => { if (loggedIn.value) loadProfile() })
+onMounted(() => { if (loggedIn.value) { loadProfile(); checkVoice() } })
 async function save() {
   error.value = ''
   try { profile.value = await api.saveProfile({ ...form }); fill(profile.value) }
@@ -55,14 +55,78 @@ async function runAssist() {
 }
 
 // --- голосовой ввод ---
+//
+// Два способа, и первый лучше:
+//   whisper — запись уходит на сервер и распознаётся через тот же шлюз, что
+//             в «Подари». Работает в любом браузере, включая Firefox и iPhone,
+//             и русский разбирает заметно точнее.
+//   browser — встроенное распознавание. Остаётся запасным на случай, если
+//             ключ шлюза не задан: без него кнопка просто не работала бы.
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition
-const voiceSupported = !!SR
+const canRecord = !!(navigator.mediaDevices && window.MediaRecorder)
+const whisperReady = ref(false)
+const voiceSupported = computed(() => (whisperReady.value && canRecord) || !!SR)
 const listeningField = ref('')
+const transcribing = ref(false)
 let activeRec = null
 let voiceStop = false
+let mediaRecorder = null
+let mediaStream = null
+
+// Спрашиваем сервер, подключён ли шлюз распознавания. Если нет — микрофон
+// молча переключается на браузерный, а не обманывает обещанием.
+async function checkVoice() {
+  try { whisperReady.value = !!(await api.voiceStatus()).enabled }
+  catch { whisperReady.value = false }
+}
+
+/** Записать реплику и распознать на сервере. Останавливается повторным нажатием. */
+async function recordToServer(key, appendText) {
+  if (listeningField.value === key) {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop()
+    return
+  }
+
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+  } catch {
+    error.value = 'Разрешите доступ к микрофону.'
+    return
+  }
+
+  listeningField.value = key
+  const chunks = []
+  mediaRecorder = new MediaRecorder(mediaStream)
+  mediaRecorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data) }
+
+  mediaRecorder.onstop = async () => {
+    listeningField.value = ''
+    mediaStream.getTracks().forEach((t) => t.stop())
+    mediaStream = null
+
+    const blob = new Blob(chunks, { type: mediaRecorder.mimeType || 'audio/webm' })
+    mediaRecorder = null
+    if (blob.size < 1200) return   // случайное нажатие — не тратим запрос
+
+    transcribing.value = true
+    try {
+      const { text } = await api.transcribe(blob)
+      if (text) appendText(text)
+    } catch (e) {
+      error.value = e.message
+    } finally {
+      transcribing.value = false
+    }
+  }
+
+  mediaRecorder.start()
+}
 // Непрерывная запись: паузы не прерывают, останавливается только вручную
 // (повторным нажатием 🎤). На паузах авто-возобновляется.
 function listen(key, appendText) {
+  // Шлюз подключён — пишем и распознаём на сервере: точнее и работает везде.
+  if (whisperReady.value && canRecord) return recordToServer(key, appendText)
+
   if (listeningField.value === key) { voiceStop = true; if (activeRec) activeRec.stop(); return }
   if (!SR) { error.value = 'На iPhone/iPad нажмите 🎤 на клавиатуре. В Chrome работает эта кнопка.'; return }
   voiceStop = false
@@ -502,7 +566,7 @@ function onPhoto(e) {
         <p class="hint">Наговорите всё сразу: что это, условия, где, для кого, сколько. Мастер откроется уже заполненным — проверите и поправите.</p>
         <div class="row">
           <textarea class="wiz-text" v-model="tell.text" rows="4" placeholder="Например: сдаю жильё у моря в Адлере на 3–5 дней, за баллы или деньги 5000 в сутки, вид на горы и море, для женщин и семейных пар…"></textarea>
-          <button v-if="voiceSupported" class="ghost mic" :class="{ rec: listeningField === 'tell' }" @click="listen('tell', t => tell.text = (tell.text ? tell.text + ' ' : '') + t)">{{ listeningField === 'tell' ? '⏹' : '🎤' }}</button>
+          <button v-if="voiceSupported" class="ghost mic" :class="{ rec: listeningField === 'tell' }" @click="listen('tell', t => tell.text = (tell.text ? tell.text + ' ' : '') + t)">{{ transcribing ? '…' : (listeningField === 'tell' ? '⏹' : '🎤') }}</button>
         </div>
         <div class="wnav">
           <button class="ghost" @click="tell.open = false">Отмена</button>
@@ -549,7 +613,7 @@ function onPhoto(e) {
           </div>
           <div class="row">
             <textarea ref="wizField" class="wiz-text" :value="curVal()" @input="e => { setCur(e.target.value); autogrow() }" rows="2" :placeholder="cur.options && cur.options.length ? 'или впишите своё' : 'ваш ответ'"></textarea>
-            <button v-if="voiceSupported" class="ghost mic" :class="{ rec: listeningField === 'wiz' }" @click="listen('wiz', t => { setCur((curVal() ? curVal() + ' ' : '') + t); nextTick(autogrow) })">{{ listeningField === 'wiz' ? '⏹' : '🎤' }}</button>
+            <button v-if="voiceSupported" class="ghost mic" :class="{ rec: listeningField === 'wiz' }" @click="listen('wiz', t => { setCur((curVal() ? curVal() + ' ' : '') + t); nextTick(autogrow) })">{{ transcribing ? '…' : (listeningField === 'wiz' ? '⏹' : '🎤') }}</button>
           </div>
         </template>
 
