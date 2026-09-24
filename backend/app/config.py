@@ -44,6 +44,19 @@ class Settings:
     anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
     ai_model: str = os.getenv("AI_MODEL", "claude-haiku-4-5-20251001")
 
+    # Распознавание голоса. Схема та же, что уже работает в «Подари»:
+    # OpenAI-совместимый шлюз (в проде там ProxyAPI — российский, без VPN).
+    # Имена AI_BASE_URL / AI_API_KEY совпадают с тамошними, поэтому готовый
+    # .env подходит как есть. AI_TRANSCRIBE_* нужны, только если распознавание
+    # и текстовая модель живут в разных местах.
+    transcribe_base_url: str = (
+        os.getenv("AI_TRANSCRIBE_BASE_URL") or os.getenv("AI_BASE_URL", "")
+    )
+    transcribe_api_key: str = (
+        os.getenv("AI_TRANSCRIBE_API_KEY") or os.getenv("AI_API_KEY", "")
+    )
+    transcribe_model: str = os.getenv("AI_TRANSCRIBE_MODEL", "whisper-1")
+
     # YandexGPT (российский ИИ, работает с РФ-сервера без VPN).
     yandex_api_key: str = os.getenv("YANDEX_API_KEY", "")
     yandex_folder_id: str = os.getenv("YANDEX_FOLDER_ID", "")
