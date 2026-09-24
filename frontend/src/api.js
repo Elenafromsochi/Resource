@@ -27,8 +27,17 @@ async function sendAudio(blob) {
   const token = getToken()
   if (token) headers['Authorization'] = `Bearer ${token}`
 
+  // Имя файла должно совпадать с настоящим форматом: Safari на iPhone и iPad
+  // пишет в mp4, Chrome — в webm. Назовёшь mp4-запись «voice.webm» — шлюз
+  // распознавания её не примет.
+  const type = blob.type || ''
+  const ext = type.includes('mp4') || type.includes('m4a') ? 'mp4'
+    : type.includes('ogg') ? 'ogg'
+    : type.includes('wav') ? 'wav'
+    : 'webm'
+
   const form = new FormData()
-  form.append('file', blob, 'voice.webm')
+  form.append('file', blob, `voice.${ext}`)
 
   const res = await fetch(`${BASE}/api/voice/transcribe`, { method: 'POST', headers, body: form })
   if (!res.ok) {
