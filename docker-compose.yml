@@ -18,6 +18,12 @@ services:
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       AI_MODEL: ${AI_MODEL:-claude-haiku-4-5-20251001}
+      # Распознавание голоса: ключ и шлюз те же, что в «Подари».
+      # Без этих трёх строк ключ не попадёт внутрь контейнера и микрофон
+      # тихо откатится на браузерное распознавание.
+      AI_BASE_URL: ${AI_BASE_URL:-}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_TRANSCRIBE_MODEL: ${AI_TRANSCRIBE_MODEL:-whisper-1}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
     ports:
       - "8000:8000"
